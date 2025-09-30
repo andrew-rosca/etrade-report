@@ -430,7 +430,7 @@ def main():
         )])
 
         fig_pie.update_layout(
-            height=200,
+            height=250,
             margin=dict(l=0, r=0, t=0, b=0),
             showlegend=False
         )

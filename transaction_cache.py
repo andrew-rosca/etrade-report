@@ -136,12 +136,23 @@ class TransactionCache:
                     break
 
                 # Check stopping conditions
-                if len(transactions) < 50:
-                    print("📄 Reached end of transaction history")
-                    break
-
                 if oldest_date_found and oldest_date_found < start_date:
                     print(f"📅 Found transactions older than {start_date.strftime('%m/%d/%Y')}")
+                    break
+
+                # Check if we've fetched all available transactions
+                total_count = response.get('totalCount', 0)
+                if total_count and len(seen_ids) >= int(total_count):
+                    print(f"📄 Fetched all {total_count} available transactions")
+                    break
+
+                # Also check moreTransactions flag (though totalCount is more reliable)
+                more_transactions = response.get('moreTransactions', 'false')
+                has_more = str(more_transactions).lower() == 'true'
+
+                if not has_more and not total_count:
+                    # Only stop if both indicators say we're done
+                    print("📄 API reports no more transactions available")
                     break
 
                 # Use the API's marker field if available, otherwise fall back to transaction ID
@@ -153,6 +164,9 @@ class TransactionCache:
                     if not marker:
                         print("⚠️  No marker or transaction ID for pagination")
                         break
+                else:
+                    print("⚠️  No transactions or marker to continue pagination")
+                    break
 
             except Exception as e:
                 print(f"❌ Error in pagination call {call_count}: {e}")
@@ -217,8 +231,9 @@ class TransactionCache:
     def _filter_by_date_range(self, transactions: List[Dict[str, Any]], days_back: int) -> List[Dict[str, Any]]:
         """Filter transactions to specified date range."""
         end_date = datetime.now()
-        start_date = end_date - timedelta(days=days_back)
-        
+        # Use start of day for start_date to include all transactions on that day
+        start_date = (end_date - timedelta(days=days_back)).replace(hour=0, minute=0, second=0, microsecond=0)
+
         filtered = []
         for trans in transactions:
             try:
@@ -228,7 +243,7 @@ class TransactionCache:
                     filtered.append(trans)
             except (ValueError, TypeError):
                 continue
-        
+
         return filtered
     
     def _sort_transactions(self, transactions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

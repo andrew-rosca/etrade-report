@@ -93,11 +93,33 @@ class BalanceHistoryReconstructor:
         ]
 
         # These are NOT cash flows (just moving money within the account)
+        # Note: Check these AFTER checking for ACH deposits/withdrawals
+        neutral_transfer_descriptions = [
+            'trnsfr cash to margin',  # Internal margin transfers
+            'trnsfr margin to cash',  # Internal margin transfers
+        ]
+
         neutral_types = [
             'bought',            # Buying stocks (cash -> positions)
             'sold',              # Selling stocks (positions -> cash)
-            'transfer',          # Internal transfers (margin to cash, etc.)
         ]
+
+        # Check if this is an ACH deposit/withdrawal (real money in/out)
+        if 'ach' in desc_lower or 'online transfer' in trans_type_lower:
+            # ACH deposits and withdrawals are real cash flows
+            if 'deposit' in desc_lower or 'credit' in desc_lower:
+                return amount
+            elif 'debit' in desc_lower or 'withdrawal' in desc_lower:
+                return amount
+
+        # Check if this is an internal transfer (not a cash flow)
+        for neutral_desc in neutral_transfer_descriptions:
+            if neutral_desc in desc_lower:
+                return 0.0
+
+        # Generic "Transfer" type without ACH is internal (margin/cash movements)
+        if 'transfer' in trans_type_lower:
+            return 0.0
 
         # Check if this is a neutral (non-cash-flow) transaction
         for neutral_type in neutral_types:
