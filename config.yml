@@ -2,18 +2,22 @@
 # Assign your positions to buckets by symbol
 
 buckets:
-  Growth:
-    - AMZN
-    - MSTR
+  Core Growth:
     - SPYG
-    - MCD 
-    - KGC 
     - CLM
-    - COST
     - CRF 
     - GOF
+    
+  Growth:
+    - MCD 
+    - KGC 
+    - COST
     - MELI
     - SNPS
+    - AMZN
+    - MSTR
+    - NVDA
+
   
   Income:
     - QQQI
