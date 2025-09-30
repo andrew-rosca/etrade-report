@@ -350,9 +350,9 @@ def main():
         bucket_df = pd.DataFrame([
             {
                 'Symbol': pos['symbol'],
+                'Market Value': pos['market_value'],
                 'Quantity': pos['quantity'],
                 'Price': pos['current_price'],
-                'Market Value': pos['market_value'],
                 'Gain/Loss': pos['gain_loss'],
                 'G/L %': pos['gain_loss_pct']
             }
