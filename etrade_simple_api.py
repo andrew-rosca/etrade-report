@@ -430,3 +430,27 @@ class ETradeSimpleAPI:
         }
         response = self._make_authenticated_request('GET', endpoint, params=params)
         return self._parse_xml_response(response)
+
+    def get_account_transactions(self, account_id_key: str, start_date: Optional[str] = None, end_date: Optional[str] = None, count: int = 50, marker: Optional[str] = None) -> Dict[str, Any]:
+        """Get account transactions for historical analysis.
+        
+        Args:
+            account_id_key: Account identifier
+            start_date: Start date in MMDDYYYY format (optional) - e.g., "09012025" for Sept 1, 2025
+            end_date: End date in MMDDYYYY format (optional) - e.g., "09302025" for Sept 30, 2025  
+            count: Number of transactions to retrieve (max 50 per call)
+            marker: Transaction ID to start from for pagination (optional)
+        """
+        # Use the correct E*TRADE transactions endpoint (plural "accounts")
+        endpoint = f'/v1/accounts/{account_id_key}/transactions'
+        params: Dict[str, Any] = {'count': min(count, 50)}  # API limit is 50 per call
+        
+        if start_date:
+            params['startDate'] = start_date
+        if end_date:
+            params['endDate'] = end_date
+        if marker:
+            params['marker'] = marker
+            
+        response = self._make_authenticated_request('GET', endpoint, params=params)
+        return self._parse_xml_response(response)

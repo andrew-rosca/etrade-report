@@ -2,6 +2,10 @@
 .env
 .etrade_tokens.json
 
+# Transaction cache
+.transaction_cache/
+.cache/
+
 # Python cache
 __pycache__/
 *.py[cod]

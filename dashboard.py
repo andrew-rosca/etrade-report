@@ -16,13 +16,15 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import numpy as np
 from datetime import datetime
 import os
 from dotenv import load_dotenv
 
 # Import our E*TRADE modules
 from etrade_simple_api import ETradeSimpleAPI
+from portfolio_analyzer import PortfolioAnalyzer, PortfolioPosition
+from main import transform_etrade_position
+from balance_history import BalanceHistoryReconstructor
 
 def format_dividend_date(timestamp):
     """Convert E*TRADE timestamp to readable date format."""
@@ -52,8 +54,6 @@ def format_dividend_yield(value):
     if value == 0 or value == 0.0:
         return '-'
     return f'{value:.2f}%'
-from portfolio_analyzer import PortfolioAnalyzer, PortfolioPosition
-from main import transform_etrade_position
 
 # Configure Streamlit page
 st.set_page_config(
@@ -342,13 +342,10 @@ def main():
     
     # Analyze buckets
     buckets, positions = create_bucket_analysis(portfolio_data)
-    
-    # Simple 3-pane layout: Balances | Portfolio Distribution
-    #                           Positions (full width)
-    
-    # Top row - two panes side by side
-    col1, col2 = st.columns(2)
-    
+
+    # Top row - three panes: Balances (25%) | Portfolio Distribution (25%) | Cash Flow (50%)
+    col1, col2, col3 = st.columns([1, 1, 2])
+
     # Left pane - All Financial Information
     with col1:
         # Color code the gain/loss and dim the labels
@@ -403,15 +400,14 @@ def main():
         
         st.markdown(balance_html, unsafe_allow_html=True)
     
-    # Right pane - Portfolio Distribution (pie chart only)
+    # Middle pane - Portfolio Distribution (pie chart only)
     with col2:
-        
         # Portfolio allocation pie chart
         bucket_names = []
         bucket_values = []
         bucket_colors = []
         color_map = {"Growth": "#1E90FF", "Core Growth": "#4169E1", "Income": "#2E8B57", "Hedge": "#FF8C00", "Unassigned": "#708090"}
-        
+
         for bucket_name, bucket_info in buckets.items():
             if bucket_info['total_value'] > 0:
                 bucket_names.append(bucket_name)
@@ -419,10 +415,10 @@ def main():
                 # since percentages don't reveal absolute values
                 bucket_values.append(bucket_info['total_value'])
                 bucket_colors.append(color_map.get(bucket_name, "#708090"))
-        
+
         # In redaction mode, show only percentages, not values
         textinfo = 'label+percent' if st.session_state.get('redact_toggle', False) else 'label+percent'
-        
+
         fig_pie = go.Figure(data=[go.Pie(
             labels=bucket_names,
             values=bucket_values,
@@ -432,15 +428,131 @@ def main():
             textfont=dict(size=11),
             hovertemplate='<b>%{label}</b><br>%{percent}<extra></extra>' if st.session_state.get('redact_toggle', False) else '<b>%{label}</b><br>$%{value:,.0f}<br>%{percent}<extra></extra>'
         )])
-        
+
         fig_pie.update_layout(
             height=200,
             margin=dict(l=0, r=0, t=0, b=0),
             showlegend=False
         )
-        
+
         # Use config parameter to avoid deprecation warning
         st.plotly_chart(fig_pie, config={'displayModeBar': False})
+
+    # Right pane - Cash Flow History Chart
+    with col3:
+        # Create sub-columns for stats and radio buttons on same line
+        col3a, col3b = st.columns([1, 1])
+
+        with col3b:
+            days_back = st.radio(
+                "period_selector",
+                options=[7, 14, 30, 60, 90],
+                index=1,  # Default to 14 days
+                format_func=lambda x: f"{x}d",
+                horizontal=True,
+                label_visibility="collapsed"
+            )
+
+        # Generate balance history chart (need to do this first to get stats)
+        with st.spinner(f"📊 Loading..."):
+            try:
+                # Get API instance from load_portfolio_data cache or create new one
+                client_key = os.getenv('ETRADE_CLIENT_KEY')
+                client_secret = os.getenv('ETRADE_CLIENT_SECRET')
+                api = ETradeSimpleAPI(client_key, client_secret, use_sandbox=False)
+
+                # Make sure we're authenticated
+                if not api.is_authenticated():
+                    if not api.authenticate():
+                        st.error("❌ Failed to authenticate")
+                        st.stop()
+
+                # Find the account key
+                if account_info:
+                    account_key = account_info['accountIdKey']
+
+                    # Create balance history reconstructor
+                    reconstructor = BalanceHistoryReconstructor(api)
+
+                    # Create cash flow history
+                    balance_df = reconstructor.create_cash_flow_history(
+                        account_key,
+                        days_back
+                    )
+
+                    if len(balance_df) >= 1:
+                        # Calculate stats
+                        total_inflow = balance_df[balance_df['daily_flow'] > 0]['daily_flow'].sum() if len(balance_df) > 0 else 0
+                        total_outflow = abs(balance_df[balance_df['daily_flow'] < 0]['daily_flow'].sum()) if len(balance_df) > 0 else 0
+
+                        # Display stats in col3a (on same line as radio buttons)
+                        with col3a:
+                            inflow_str = redact_value(total_inflow, '${:,.0f}')
+                            outflow_str = redact_value(total_outflow, '${:,.0f}')
+                            stats_html = f"""
+                            <div style="font-size: 0.85rem; line-height: 1.8; margin-top: 6px;">
+                                <span style="color: #888;">In:</span> <span style="color: #28a745; font-weight: bold;">{inflow_str}</span>
+                                <span style="color: #888; margin-left: 16px;">Out:</span> <span style="color: #dc3545; font-weight: bold;">{outflow_str}</span>
+                            </div>
+                            """
+                            st.markdown(stats_html, unsafe_allow_html=True)
+
+                        # Create and display the chart
+                        fig_balance = go.Figure()
+
+                        # Prepare hover text
+                        if st.session_state.get('redact_toggle', False):
+                            hover_template = 'Date: %{x|%m/%d/%Y}<br>Cash Flow Activity<extra></extra>'
+                            custom_data = None
+                        else:
+                            hover_template = '%{customdata}<extra></extra>'
+                            custom_data = balance_df['hover_text'].tolist()
+
+                        fig_balance.add_trace(go.Bar(
+                            x=balance_df['date'],
+                            y=balance_df['daily_flow'],
+                            name='Daily Cash Flow',
+                            marker_color=balance_df['bar_color'],
+                            hovertemplate=hover_template,
+                            customdata=custom_data
+                        ))
+
+                        fig_balance.update_layout(
+                            height=200,
+                            margin=dict(l=0, r=0, t=5, b=0),
+                            showlegend=False,
+                            xaxis=dict(
+                                title=None,
+                                showgrid=True,
+                                gridcolor='rgba(128,128,128,0.2)',
+                                tickformat='%m/%d',
+                                tickfont=dict(size=9)
+                            ),
+                            yaxis=dict(
+                                title=None,
+                                tickformat='$,.0f' if not st.session_state.get('redact_toggle', False) else '',
+                                showticklabels=not st.session_state.get('redact_toggle', False),
+                                showgrid=True,
+                                gridcolor='rgba(128,128,128,0.2)',
+                                zeroline=True,
+                                zerolinecolor='#666666',
+                                zerolinewidth=1,
+                                tickfont=dict(size=9)
+                            ),
+                            plot_bgcolor='rgba(0,0,0,0)',
+                            paper_bgcolor='rgba(0,0,0,0)',
+                            hovermode='x unified',
+                            bargap=0.2
+                        )
+
+                        st.plotly_chart(fig_balance, use_container_width=True, config={'displayModeBar': False})
+                    else:
+                        st.info("📊 No data")
+                else:
+                    st.error("❌ Account info unavailable")
+
+            except Exception as e:
+                st.error(f"❌ Error: {e}")
 
     st.markdown("---")
     
