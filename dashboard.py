@@ -1,22 +1,14 @@
 #!/usr/bin/env python3
 """
-E*TRADE Portfolio Streamlit Dashboard
+Run with: streamlit run dashboard.py
 
-A beautiful, interactive web dashboard for E*TRADE portfolio analysis.
-Run with: streamlit run streamlit_dashboard.py
-
-Fea    # Top refresh controls
-    col_refresh, col_time = st.columns([0.7, 6])
-    with col_refresh:
-        if st.button("Refresh", type="primary"):
-            st.cache_data.clear()
-            st.rerun()
-    with col_time:
-        st.caption(f"Last updated: {datetime.now().strftime('%H:%M:%S')}")eal-time portfolio overview
+Features:
+- Real-time portfolio overview
 - Interactive bucket allocation charts
 - Margin analysis and cash flow
 - Detailed position tables with filtering
 - Performance metrics and trends
+- Privacy mode with value redaction
 """
 
 import streamlit as st
@@ -49,54 +41,65 @@ st.markdown("""
         font-size: 1.1rem !important;
         margin-bottom: 0.5rem !important;
     }
-    .stMarkdown p {
-        font-size: 0.9rem;
+    .metric-value {
+        font-size: 1.5rem !important;
+        font-weight: bold !important;
     }
-    .stText {
+    div[data-testid="metric-container"] > label {
         font-size: 0.9rem !important;
-        line-height: 1.4 !important;
-        margin-bottom: 0.2rem !important;
+        color: #888 !important;
+    }
+    .stDataFrame {
+        font-size: 0.85rem !important;
+    }
+    .block-container {
+        padding-top: 3rem !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
-@st.cache_data(ttl=300)  # Cache for 5 minutes
+# Load environment variables
+load_dotenv()
+
+redaction_text = "\\*\\*\\*"
+
+# Redaction helper functions
+def redact_value(value, format_str="${:,.0f}", redacted_text=redaction_text):
+    """Redact a monetary value or quantity if redaction is enabled"""
+    if st.session_state.get('redact_toggle', False):
+        # Use simple text that won't interfere with HTML
+        return redaction_text
+    else:
+        return format_str.format(value)
+
+def redact_quantity(quantity):
+    """Redact quantity values"""
+    if st.session_state.get('redact_toggle', False):
+        return redaction_text
+    else:
+        return f"{quantity:.1f}"
+
+@st.cache_data(ttl=30)  # Cache for 30 seconds
 def load_portfolio_data():
-    """Load portfolio data from E*TRADE API with caching."""
+    """Load portfolio data from E*TRADE API."""
     try:
-        # Load environment variables
-        load_dotenv()
+        # Get credentials from environment
         client_key = os.getenv('ETRADE_CLIENT_KEY')
         client_secret = os.getenv('ETRADE_CLIENT_SECRET')
         
         if not client_key or not client_secret:
-            st.error("❌ E*TRADE API credentials not found in .env file")
+            st.error("❌ E*TRADE credentials not found. Please check your environment variables.")
             return None, None, None
         
         # Initialize API
-        api = ETradeSimpleAPI(client_key, client_secret)
+        api = ETradeSimpleAPI(client_key, client_secret, use_sandbox=False)
         
-        # Try to use cached tokens first
+        # Authenticate with E*TRADE API
         if not api.authenticate():
-            st.warning("⚠️ Could not authenticate with E*TRADE API. Using sample data for demonstration.")
-            # Return sample data for demonstration
-            sample_portfolio = [
-                {'symbol': 'AAPL', 'description': 'Apple Inc', 'quantity': 100, 'current_price': 175.25, 'market_value': 17525.00, 'gain_loss': 825.00, 'gain_loss_pct': 4.94},
-                {'symbol': 'MSFT', 'description': 'Microsoft Corp', 'quantity': 75, 'current_price': 285.30, 'market_value': 21397.50, 'gain_loss': -234.50, 'gain_loss_pct': -1.08},
-                {'symbol': 'SPY', 'description': 'SPDR S&P 500 ETF', 'quantity': 200, 'current_price': 412.85, 'market_value': 82570.00, 'gain_loss': 670.00, 'gain_loss_pct': 0.82},
-                {'symbol': 'QQQ', 'description': 'Invesco QQQ Trust', 'quantity': 150, 'current_price': 356.42, 'market_value': 53463.00, 'gain_loss': 1200.00, 'gain_loss_pct': 2.30},
-                {'symbol': 'SPY Oct 17 \'25 $600 Put', 'description': 'SPY Put Option', 'quantity': 1, 'current_price': 0.46, 'market_value': 46.50, 'gain_loss': -39.17, 'gain_loss_pct': -45.72}
-            ]
-            sample_balance = {
-                'RealTimeValues': {'totalAccountValue': 175000.00},
-                'totalAvailableForWithdrawal': 15000.00,
-                'marginBuyingPower': 30000.00,
-                'accountBalance': -25000.00
-            }
-            sample_account = {'accountDesc': 'Sample Brokerage Account', 'accountId': 'DEMO123456'}
-            return sample_portfolio, sample_balance, sample_account
+            st.error("❌ Failed to authenticate with E*TRADE API. Please check your credentials and try refreshing.")
+            return None, None, None
         
-        # Get account data
+        # Get account list
         accounts = api.get_account_list()
         if not accounts or 'Accounts' not in accounts:
             st.error("❌ Failed to retrieve account list")
@@ -149,7 +152,7 @@ def load_portfolio_data():
         return None, None, None
 
 def create_bucket_analysis(portfolio_data):
-    """Analyze portfolio into buckets and return data for visualization."""
+    """Create bucket analysis from portfolio data."""
     analyzer = PortfolioAnalyzer()
     
     # Convert to PortfolioPosition objects
@@ -176,17 +179,27 @@ def create_bucket_analysis(portfolio_data):
 def main():
     """Main Streamlit application."""
     
+    # Sidebar for settings and controls
+    with st.sidebar:               
+        st.caption(f"Last updated: {datetime.now().strftime('%H:%M:%S')}")
 
-    
-    # Simple refresh button in sidebar
-    with st.sidebar:
-        st.header("� Controls")
         if st.button("Refresh Data", type="primary"):
             st.cache_data.clear()
             st.rerun()
         
         st.markdown("---")
-        st.caption(f"Last updated: {datetime.now().strftime('%H:%M:%S')}")
+
+        # Redaction toggle
+        redact_values = st.toggle(
+            "Redact Values", 
+            key="redact_toggle",
+            help="Hide account balances, market values, and quantities for privacy. Prices and percentages remain visible."
+        )        
+        
+        if redact_values:
+            st.info("**Privacy Mode Active**\n\nHidden: Account balances, market values, quantities\n\nVisible: Prices, percentages, symbols")
+
+
     
     # Load data
     with st.spinner("🔄 Loading portfolio data..."):
@@ -225,8 +238,6 @@ def main():
     if net_account_value > 0 and margin_balance < 0:
         margin_utilization = (abs(margin_balance) / net_account_value) * 100
     
-
-    
     # Analyze buckets
     buckets, positions = create_bucket_analysis(portfolio_data)
     
@@ -249,11 +260,11 @@ def main():
         else:
             margin_color = "red"
         
-        st.markdown(f"<span style='color:#888'>Portfolio Value:</span> <strong>${net_market_value:,.0f}</strong> (<span style='color:{gain_color}; font-weight:bold'>{total_gain_loss:+,.0f}, {total_gain_loss_pct:+.1f}%</span>)", unsafe_allow_html=True)
-        st.markdown(f"<span style='color:#888'>Net Account Value:</span> <strong>${net_account_value:,.0f}</strong> (<span style='color:{margin_color}; font-weight:bold'>{margin_utilization:.1f}%</span>)", unsafe_allow_html=True)
-        st.markdown(f"<span style='color:#888'>Margin Buying Power:</span> <strong>${margin_buying_power:,.0f}</strong>", unsafe_allow_html=True)
-        st.markdown(f"<span style='color:#888'>Cash Available:</span> <strong>${cash_available:,.0f}</strong>", unsafe_allow_html=True)
-        st.markdown(f"<span style='color:#888'>Margin Balance:</span> <strong>${margin_balance:,.0f}</strong>", unsafe_allow_html=True)
+        st.markdown(f"<span style='color:#888'>Portfolio Value:</span> <strong>{redact_value(net_market_value)}</strong> (<span style='color:{gain_color}; font-weight:bold'>{redact_value(total_gain_loss, '{:+,.0f}')}, {total_gain_loss_pct:+.1f}%</span>)", unsafe_allow_html=True)
+        st.markdown(f"<span style='color:#888'>Equity:</span> <strong>{redact_value(net_account_value)}</strong> (<span style='color:{margin_color}; font-weight:bold'>{margin_utilization:.1f}%</span>)", unsafe_allow_html=True)
+        st.markdown(f"<span style='color:#888'>Margin Buying Power:</span> <strong>{redact_value(margin_buying_power)}</strong>", unsafe_allow_html=True)
+        st.markdown(f"<span style='color:#888'>Cash Available:</span> <strong>{redact_value(cash_available)}</strong>", unsafe_allow_html=True)
+        st.markdown(f"<span style='color:#888'>Margin Balance:</span> <strong>{redact_value(margin_balance)}</strong>", unsafe_allow_html=True)
     
     # Right pane - Portfolio Distribution (pie chart only)
     with col2:
@@ -262,21 +273,27 @@ def main():
         bucket_names = []
         bucket_values = []
         bucket_colors = []
-        color_map = {"Core Growth": "#1E90FF", "Growth": "#2E8B57", "Income": "#4169E1", "Hedge": "#FF8C00", "Unassigned": "#708090"}
+        color_map = {"Growth": "#1E90FF", "Core Growth": "#4169E1", "Income": "#2E8B57", "Hedge": "#FF8C00", "Unassigned": "#708090"}
         
         for bucket_name, bucket_info in buckets.items():
             if bucket_info['total_value'] > 0:
                 bucket_names.append(bucket_name)
+                # For pie chart, we can show relative percentages even in redaction mode
+                # since percentages don't reveal absolute values
                 bucket_values.append(bucket_info['total_value'])
                 bucket_colors.append(color_map.get(bucket_name, "#708090"))
+        
+        # In redaction mode, show only percentages, not values
+        textinfo = 'label+percent' if st.session_state.get('redact_toggle', False) else 'label+percent'
         
         fig_pie = go.Figure(data=[go.Pie(
             labels=bucket_names,
             values=bucket_values,
             hole=0.3,
-            marker_colors=bucket_colors,
-            textinfo='label+percent',
-            textfont_size=11
+            marker=dict(colors=bucket_colors),
+            textinfo=textinfo,
+            textfont=dict(size=11),
+            hovertemplate='<b>%{label}</b><br>%{percent}<extra></extra>' if st.session_state.get('redact_toggle', False) else '<b>%{label}</b><br>$%{value:,.0f}<br>%{percent}<extra></extra>'
         )])
         
         fig_pie.update_layout(
@@ -286,11 +303,10 @@ def main():
         )
         
         # Use config parameter to avoid deprecation warning
-        config = {'displayModeBar': False}
-        st.plotly_chart(fig_pie, use_container_width=True, config=config)
+        st.plotly_chart(fig_pie, config={'displayModeBar': False})
     
     # Bottom pane - Positions organized by buckets
-    search_term = st.text_input("Search positions", placeholder="Enter symbol...", label_visibility="collapsed")
+    search_term = st.text_input("Search positions", placeholder="Search positions...", label_visibility="collapsed")
     
     # Create analyzer and organize positions by bucket
     analyzer = PortfolioAnalyzer()
@@ -344,7 +360,7 @@ def main():
         
         # Bucket header with totals
         gain_color = "green" if bucket_gain_loss >= 0 else "red"
-        st.markdown(f"<span style='color:#888'>{bucket_name}:</span> <strong>${bucket_total:,.0f}</strong> (<span style='color:{gain_color}; font-weight:bold'>{bucket_gain_loss:+,.0f}</span>)", unsafe_allow_html=True)
+        st.markdown(f"<span style='color:#888'>{bucket_name}:</span> <strong>{redact_value(bucket_total)}</strong> (<span style='color:{gain_color}; font-weight:bold'>{redact_value(bucket_gain_loss, '{:+,.0f}')}</span>)", unsafe_allow_html=True)
         
         # Create dataframe for this bucket
         bucket_df = pd.DataFrame([
@@ -359,17 +375,32 @@ def main():
             for pos in sorted(filtered_positions, key=lambda x: x['market_value'], reverse=True)
         ])
         
+        # Apply redaction to sensitive columns
+        if st.session_state.get('redact_toggle', False):
+            bucket_df['Market Value'] = bucket_df['Market Value'].apply(lambda x: "***")
+            bucket_df['Quantity'] = bucket_df['Quantity'].apply(lambda x: "***")
+            bucket_df['Gain/Loss'] = bucket_df['Gain/Loss'].apply(lambda x: "***")
+        
         # Style and format the dataframe
         styled_df = bucket_df.style.map(style_gain_loss, subset=['Gain/Loss', 'G/L %'])
-        styled_df = styled_df.format({
-            'Price': '${:.2f}',
-            'Market Value': '${:,.0f}',
-            'Gain/Loss': '${:,.0f}',
-            'G/L %': '{:+.1f}%',
-            'Quantity': '{:.1f}'
-        })
         
-        st.dataframe(styled_df, use_container_width=True, hide_index=True)
+        # Format based on redaction state
+        if st.session_state.get('redact_toggle', False):
+            styled_df = styled_df.format({
+                'Price': '${:.2f}',
+                'G/L %': '{:+.1f}%'
+                # Market Value, Quantity, and Gain/Loss are already redacted above
+            })
+        else:
+            styled_df = styled_df.format({
+                'Price': '${:.2f}',
+                'Market Value': '${:,.0f}',
+                'Gain/Loss': '${:,.0f}',
+                'G/L %': '{:+.1f}%',
+                'Quantity': '{:.1f}'
+            })
+        
+        st.dataframe(styled_df, width='stretch', hide_index=True)
         st.markdown("")  # Add some spacing between buckets
 
 if __name__ == "__main__":
