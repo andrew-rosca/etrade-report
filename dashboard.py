@@ -331,17 +331,18 @@ def main():
         # Extract values from correct locations
         net_market_value = float(real_time_values.get('netMv', 0))  # Portfolio value from RealTimeValues
         net_account_value = float(computed.get('regtEquity', 0))  # Net account equity from Computed
+        equity_pct = float(computed.get('regtEquityPercent', 0))  # Equity percentage from Computed
         margin_buying_power = float(computed.get('marginBuyingPower', 0))  # From Computed
         cash_buying_power = float(computed.get('cashBuyingPower', 0))  # From Computed
         margin_balance = float(computed.get('marginBalance', 0))  # From Computed
         cash_available = float(computed.get('totalAvailableForWithdrawal', 0))  # From Computed
     else:
-        net_market_value = net_account_value = margin_buying_power = cash_buying_power = margin_balance = cash_available = 0
+        net_market_value = net_account_value = margin_buying_power = cash_buying_power = equity_pct = margin_balance = cash_available = 0
     
     # Calculate margin utilization
-    margin_utilization = 0
-    if net_account_value > 0 and margin_balance < 0:
-        margin_utilization = (abs(margin_balance) / net_account_value) * 100
+    margin_utilization = equity_pct #0
+    # if net_account_value > 0 and margin_balance < 0:
+    #     margin_utilization = (abs(margin_balance) / net_account_value) * 100
     
     # Analyze buckets
     buckets, positions = create_bucket_analysis(portfolio_data)
@@ -370,10 +371,10 @@ def main():
         
         st.markdown(f"<span style='color:#888'>Portfolio Value:</span> <strong>{redact_value(net_market_value)}</strong> (<span style='color:{gain_color}; font-weight:bold'>{redact_value(total_gain_loss, '{:+,.0f}')}, {total_gain_loss_pct:+.1f}%</span>)", unsafe_allow_html=True)
         st.markdown(f"<span style='color:#888'>Equity:</span> <strong>{redact_value(net_account_value)}</strong> (<span style='color:{margin_color}; font-weight:bold'>{margin_utilization:.1f}%</span>)", unsafe_allow_html=True)
-        st.markdown(f"<span style='color:#888'>Annual Dividend Income:</span> <strong>{redact_value(total_dividend_income)}</strong>", unsafe_allow_html=True)
         st.markdown(f"<span style='color:#888'>Margin Buying Power:</span> <strong>{redact_value(margin_buying_power)}</strong>", unsafe_allow_html=True)
         st.markdown(f"<span style='color:#888'>Cash Available:</span> <strong>{redact_value(cash_available)}</strong>", unsafe_allow_html=True)
         st.markdown(f"<span style='color:#888'>Margin Balance:</span> <strong>{redact_value(margin_balance)}</strong>", unsafe_allow_html=True)
+        st.markdown(f"<span style='color:#888'>Annual Dividend Income:</span> <strong>{redact_value(total_dividend_income)}</strong>", unsafe_allow_html=True)
     
     # Right pane - Portfolio Distribution (pie chart only)
     with col2:
@@ -413,9 +414,11 @@ def main():
         
         # Use config parameter to avoid deprecation warning
         st.plotly_chart(fig_pie, config={'displayModeBar': False})
+
+    st.markdown("---")
     
     # Bottom pane - Positions organized by buckets
-    search_term = st.text_input("Search positions", placeholder="Search positions...", label_visibility="collapsed")
+    search_term = None # st.text_input("Search positions", placeholder="Search positions...", label_visibility="collapsed")
     
     # Create analyzer and organize positions by bucket
     analyzer = PortfolioAnalyzer()
