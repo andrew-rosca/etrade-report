@@ -23,6 +23,35 @@ from dotenv import load_dotenv
 
 # Import our E*TRADE modules
 from etrade_simple_api import ETradeSimpleAPI
+
+def format_dividend_date(timestamp):
+    """Convert E*TRADE timestamp to readable date format."""
+    if not timestamp or timestamp == '':
+        return ''
+    try:
+        # E*TRADE timestamps are in milliseconds
+        dt = datetime.fromtimestamp(int(timestamp) / 1000)
+        return dt.strftime('%m/%d/%y')
+    except (ValueError, TypeError):
+        return ''
+
+def format_dividend_value(value):
+    """Format dividend value, showing dash for zero values."""
+    if value == 0 or value == 0.0:
+        return '-'
+    return f'${value:.2f}'
+
+def format_dividend_income(value):
+    """Format dividend income, showing dash for zero values."""
+    if value == 0 or value == 0.0:
+        return '-'
+    return f'${value:,.0f}'
+
+def format_dividend_yield(value):
+    """Format dividend yield, showing dash for zero values."""
+    if value == 0 or value == 0.0:
+        return '-'
+    return f'{value:.2f}%'
 from portfolio_analyzer import PortfolioAnalyzer, PortfolioPosition
 from main import transform_etrade_position
 
@@ -267,6 +296,11 @@ def main():
             help="Hide account balances, market values, and quantities for privacy. Prices and percentages remain visible."
         )        
         
+        # Cache clear button for debugging
+        if st.button("🔄 Refresh Data", help="Clear cache and reload portfolio data"):
+            st.cache_data.clear()
+            st.rerun()
+        
         if redact_values:
             st.info("**Privacy Mode Active**\n\nHidden: Account balances, market values, quantities\n\nVisible: Prices, percentages, symbols")
 
@@ -331,8 +365,12 @@ def main():
         else:
             margin_color = "red"
         
+        # Calculate total annual dividend income
+        total_dividend_income = sum(pos.get('annual_dividend_income', 0) for pos in portfolio_data)
+        
         st.markdown(f"<span style='color:#888'>Portfolio Value:</span> <strong>{redact_value(net_market_value)}</strong> (<span style='color:{gain_color}; font-weight:bold'>{redact_value(total_gain_loss, '{:+,.0f}')}, {total_gain_loss_pct:+.1f}%</span>)", unsafe_allow_html=True)
         st.markdown(f"<span style='color:#888'>Equity:</span> <strong>{redact_value(net_account_value)}</strong> (<span style='color:{margin_color}; font-weight:bold'>{margin_utilization:.1f}%</span>)", unsafe_allow_html=True)
+        st.markdown(f"<span style='color:#888'>Annual Dividend Income:</span> <strong>{redact_value(total_dividend_income)}</strong>", unsafe_allow_html=True)
         st.markdown(f"<span style='color:#888'>Margin Buying Power:</span> <strong>{redact_value(margin_buying_power)}</strong>", unsafe_allow_html=True)
         st.markdown(f"<span style='color:#888'>Cash Available:</span> <strong>{redact_value(cash_available)}</strong>", unsafe_allow_html=True)
         st.markdown(f"<span style='color:#888'>Margin Balance:</span> <strong>{redact_value(margin_balance)}</strong>", unsafe_allow_html=True)
@@ -441,7 +479,12 @@ def main():
                 'Quantity': pos['quantity'],
                 'Price': pos['current_price'],
                 'Gain/Loss': pos['gain_loss'],
-                'G/L %': pos['gain_loss_pct']
+                'G/L %': pos['gain_loss_pct'],
+                'Div Yield': format_dividend_yield(pos.get('div_yield', 0)),
+                'Annual Div': format_dividend_value(pos.get('annual_dividend', 0)),
+                'Div Income': format_dividend_income(pos.get('annual_dividend_income', 0)),
+                'Pay Date': format_dividend_date(pos.get('div_pay_date', '')),
+                'Ex-Div Date': format_dividend_date(pos.get('ex_dividend_date', ''))
             }
             for pos in sorted(filtered_positions, key=lambda x: x['market_value'], reverse=True)
         ])
@@ -451,6 +494,7 @@ def main():
             bucket_df['Market Value'] = bucket_df['Market Value'].apply(lambda x: "***")
             bucket_df['Quantity'] = bucket_df['Quantity'].apply(lambda x: "***")
             bucket_df['Gain/Loss'] = bucket_df['Gain/Loss'].apply(lambda x: "***")
+            bucket_df['Div Income'] = bucket_df['Div Income'].apply(lambda x: "***" if x != '-' else '-')
         
         # Style and format the dataframe
         styled_df = bucket_df.style.map(style_gain_loss, subset=['Gain/Loss', 'G/L %'])
@@ -459,8 +503,13 @@ def main():
         if st.session_state.get('redact_toggle', False):
             styled_df = styled_df.format({
                 'Price': '${:.2f}',
-                'G/L %': '{:+.1f}%'
-                # Market Value, Quantity, and Gain/Loss are already redacted above
+                'G/L %': '{:+.1f}%',
+                'Div Yield': '{}',   # Already formatted
+                'Annual Div': '{}',  # Already formatted
+                'Div Income': '{}',  # Already formatted or redacted
+                'Pay Date': '{}',
+                'Ex-Div Date': '{}'
+                # Market Value, Quantity, Gain/Loss are already redacted above
             })
         else:
             styled_df = styled_df.format({
@@ -468,7 +517,12 @@ def main():
                 'Market Value': '${:,.0f}',
                 'Gain/Loss': '${:,.0f}',
                 'G/L %': '{:+.1f}%',
-                'Quantity': '{:.1f}'
+                'Quantity': '{:.1f}',
+                'Div Yield': '{}',   # Already formatted
+                'Annual Div': '{}',  # Already formatted
+                'Div Income': '{}',  # Already formatted
+                'Pay Date': '{}',
+                'Ex-Div Date': '{}'
             })
         
         st.dataframe(styled_df, width='stretch', hide_index=True)

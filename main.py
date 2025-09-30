@@ -40,7 +40,7 @@ def authenticate_etrade_api(client_key: str, client_secret: str, sandbox: bool =
 
 
 def transform_etrade_position(etrade_position: dict) -> dict:
-    """Transform E*TRADE position data to expected dictionary format."""
+    """Transform E*TRADE position data to expected dictionary format with dividend info."""
     try:
         # Extract basic position info
         symbol = etrade_position.get('symbolDescription', '')
@@ -56,15 +56,34 @@ def transform_etrade_position(etrade_position: dict) -> dict:
         # If no current price in Quick, calculate from market value and quantity
         if current_price == 0 and quantity > 0:
             current_price = market_value / quantity
+        
+
+        
+        # Extract dividend information from Complete section (available with complete view)
+        complete_data = etrade_position.get('Complete', {})
+        annual_dividend = float(complete_data.get('annualDividend', 0))
+        dividend = float(complete_data.get('dividend', 0))
+        div_yield = float(complete_data.get('divYield', 0))
+        div_pay_date = complete_data.get('divPayDate', '')
+        ex_dividend_date = complete_data.get('exDividendDate', '')
+        
+        # Calculate annual dividend income from this position
+        annual_dividend_income = annual_dividend * quantity if annual_dividend > 0 else 0
             
         return {
             'symbol': symbol,
-            'description': symbol,  # E*TRADE uses symbolDescription for both
+            'description': symbol,  # Keep using symbol as description
             'quantity': quantity,
             'current_price': current_price,
             'market_value': market_value,
             'gain_loss': total_gain,
-            'gain_loss_pct': total_gain_pct
+            'gain_loss_pct': total_gain_pct,
+            'annual_dividend': annual_dividend,
+            'dividend': dividend,
+            'div_yield': div_yield,
+            'div_pay_date': div_pay_date,
+            'ex_dividend_date': ex_dividend_date,
+            'annual_dividend_income': annual_dividend_income
         }
     except (KeyError, ValueError, TypeError) as e:
         print(f"⚠️  Warning: Could not transform position {etrade_position.get('symbolDescription', 'Unknown')}: {e}")

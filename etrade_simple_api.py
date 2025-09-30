@@ -415,7 +415,18 @@ class ETradeSimpleAPI:
             }
 
     def get_account_positions(self, account_id_key: str) -> Dict[str, Any]:
-        """Get account portfolio positions."""
+        """Get account portfolio positions with complete view for detailed information.
+        
+        Complete view includes additional fields like:
+        - annualDividend: Annual dividend per share
+        - dividend: Current dividend per share  
+        - divYield: Dividend yield percentage
+        - divPayDate: Dividend payment date
+        - exDividendDate: Ex-dividend date
+        """
         endpoint = f'/v1/accounts/{account_id_key}/portfolio'
-        response = self._make_authenticated_request('GET', endpoint)
+        params = {
+            'view': 'COMPLETE'  # Request complete view for dividend info and detailed data
+        }
+        response = self._make_authenticated_request('GET', endpoint, params=params)
         return self._parse_xml_response(response)
