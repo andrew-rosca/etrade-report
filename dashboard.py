@@ -369,12 +369,18 @@ def main():
         # Calculate total annual dividend income
         total_dividend_income = sum(pos.get('annual_dividend_income', 0) for pos in portfolio_data)
         
-        st.markdown(f"<span style='color:#888'>Portfolio Value:</span> <strong>{redact_value(net_market_value)}</strong> (<span style='color:{gain_color}; font-weight:bold'>{redact_value(total_gain_loss, '{:+,.0f}')}, {total_gain_loss_pct:+.1f}%</span>)", unsafe_allow_html=True)
-        st.markdown(f"<span style='color:#888'>Equity:</span> <strong>{redact_value(net_account_value)}</strong> (<span style='color:{margin_color}; font-weight:bold'>{margin_utilization:.1f}%</span>)", unsafe_allow_html=True)
-        st.markdown(f"<span style='color:#888'>Margin Buying Power:</span> <strong>{redact_value(margin_buying_power)}</strong>", unsafe_allow_html=True)
-        st.markdown(f"<span style='color:#888'>Cash Available:</span> <strong>{redact_value(cash_available)}</strong>", unsafe_allow_html=True)
-        st.markdown(f"<span style='color:#888'>Margin Balance:</span> <strong>{redact_value(margin_balance)}</strong>", unsafe_allow_html=True)
-        st.markdown(f"<span style='color:#888'>Annual Dividend Income:</span> <strong>{redact_value(total_dividend_income)}</strong>", unsafe_allow_html=True)
+        # Use a single markdown block with line breaks for tighter spacing
+        account_summary = f"""
+        <div style='line-height: 1.8;'>
+        <span style='color:#888'>Portfolio Value:</span> <strong>{redact_value(net_market_value)}</strong> (<span style='color:{gain_color}; font-weight:bold'>{redact_value(total_gain_loss, '{:+,.0f}')}, {total_gain_loss_pct:+.1f}%</span>)<br>
+        <span style='color:#888'>Equity:</span> <strong>{redact_value(net_account_value)}</strong> (<span style='color:{margin_color}; font-weight:bold'>{margin_utilization:.1f}%</span>)<br>
+        <span style='color:#888'>Annual Dividend Income:</span> <strong>{redact_value(total_dividend_income)}</strong><br>
+        <span style='color:#888'>Margin Buying Power:</span> <strong>{redact_value(margin_buying_power)}</strong><br>
+        <span style='color:#888'>Cash Available:</span> <strong>{redact_value(cash_available)}</strong><br>
+        <span style='color:#888'>Margin Balance:</span> <strong>{redact_value(margin_balance)}</strong>
+        </div>
+        """
+        st.markdown(account_summary, unsafe_allow_html=True)
     
     # Right pane - Portfolio Distribution (pie chart only)
     with col2:
