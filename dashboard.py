@@ -34,26 +34,97 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for cleaner styling
+# Custom CSS for ultra-comfortable low-contrast theme
 st.markdown("""
 <style>
+    /* Main content area with very soft background */
+    .main .block-container {
+        background-color: #252525 !important;
+        color: #c8c8c8 !important;
+        padding-top: 3rem !important;
+    }
+    
+    /* Sidebar with warm gray */
+    .stSidebar > div:first-child {
+        background-color: #333333 !important;
+    }
+    
+    /* Headers with muted white */
     h1, h2, h3 {
         font-size: 1.1rem !important;
         margin-bottom: 0.5rem !important;
+        color: #d8d8d8 !important;
     }
+    
+    /* Metric values with gentle contrast */
     .metric-value {
         font-size: 1.5rem !important;
         font-weight: bold !important;
+        color: #e0e0e0 !important;
     }
+    
+    /* Labels with soft gray */
     div[data-testid="metric-container"] > label {
         font-size: 0.9rem !important;
-        color: #888 !important;
+        color: #999999 !important;
     }
+    
+    /* DataFrame with gentle background */
     .stDataFrame {
         font-size: 0.85rem !important;
+        background-color: #2f2f2f !important;
     }
-    .block-container {
-        padding-top: 3rem !important;
+    
+    /* Input fields with minimal contrast */
+    .stTextInput > div > div > input {
+        background-color: #3f3f3f !important;
+        color: #c8c8c8 !important;
+        border-color: #555 !important;
+    }
+    
+    /* Buttons with very soft appearance */
+    .stButton > button {
+        background-color: #4f4f4f !important;
+        color: #c8c8c8 !important;
+        border-color: #666 !important;
+    }
+    
+    /* Toggle switch with muted text */
+    .stToggle > label {
+        color: #b0b0b0 !important;
+    }
+    
+    /* Markdown text with gentle white */
+    .stMarkdown {
+        color: #c0c0c0 !important;
+    }
+    
+    /* Info boxes with subtle blue */
+    .stInfo {
+        background-color: #324a66 !important;
+        color: #c8c8c8 !important;
+    }
+    
+    /* Spinner with softer colors */
+    .stSpinner > div {
+        border-top-color: #888 !important;
+    }
+    
+    /* Success/error messages with gentler colors */
+    .stSuccess {
+        background-color: #2d4a3d !important;
+        color: #c8c8c8 !important;
+    }
+    
+    .stError {
+        background-color: #4a2d2d !important;
+        color: #c8c8c8 !important;
+    }
+    
+    /* Warning messages */
+    .stWarning {
+        background-color: #4a4a2d !important;
+        color: #c8c8c8 !important;
     }
 </style>
 """, unsafe_allow_html=True)
