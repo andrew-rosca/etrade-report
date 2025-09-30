@@ -608,10 +608,11 @@ def main():
         # Calculate bucket totals
         bucket_total = sum(pos['market_value'] for pos in filtered_positions)
         bucket_gain_loss = sum(pos['gain_loss'] for pos in filtered_positions)
-        
-        # Bucket header with totals
+        bucket_pct = (bucket_total / net_market_value * 100) if net_market_value > 0 else 0
+
+        # Bucket header with totals and percentage
         gain_color = "green" if bucket_gain_loss >= 0 else "red"
-        st.markdown(f"<span style='color:#888'>{bucket_name}:</span> <strong>{redact_value(bucket_total, markdown=True)}</strong> (<span style='color:{gain_color}; font-weight:bold'>{redact_value(bucket_gain_loss, '{:+,.0f}', markdown=True)}</span>)", unsafe_allow_html=True)
+        st.markdown(f"<span style='color:#888'>{bucket_name} ({bucket_pct:.1f}%):</span> <strong>{redact_value(bucket_total, markdown=True)}</strong> (<span style='color:{gain_color}; font-weight:bold'>{redact_value(bucket_gain_loss, '{:+,.0f}', markdown=True)}</span>)", unsafe_allow_html=True)
         
         # Create dataframe for this bucket
         bucket_df = pd.DataFrame([
