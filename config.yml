@@ -1,0 +1,47 @@
+# Portfolio Bucket Configuration
+# Assign your positions to buckets by symbol
+
+buckets:
+  Growth:
+    - AMZN
+    - MSTR
+    - SPYG
+    - MCD 
+    - KGC 
+    - CLM
+    - COST
+    - CRF 
+    - GOF
+    - MELI
+    - SNPS
+  
+  Income:
+    - QQQI
+    - RDTE
+    - YMAX
+    - HOOW
+    - AMZY
+    - BRKW
+    - BTCI
+    - SPYI
+  
+  Hedge:
+    - SPY*     # Matches SPY stock and any SPY options
+    - QQQ*     # Matches QQQ stock and any QQQ options
+    # Alternative: Use "Put" to match any put options from any underlying
+    # - Put    # Matches any position containing "Put" in name
+
+
+# Settings for the report
+settings:
+  # Minimum position value to include in report (in USD)
+  min_position_value: 0
+  
+  # Currency for reporting
+  currency: USD
+  
+  # Display precision for percentages
+  percentage_precision: 2
+  
+  # Display precision for dollar amounts
+  dollar_precision: 2
