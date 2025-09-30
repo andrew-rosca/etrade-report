@@ -161,21 +161,22 @@ st.markdown("""
 # Load environment variables
 load_dotenv()
 
-redaction_text = "\\*\\*\\*"
+redaction_text = "****"
+redaction_text_markdown = "\\*\\*\\*\\*"
 
 # Redaction helper functions
-def redact_value(value, format_str="${:,.0f}", redacted_text=redaction_text):
+def redact_value(value, format_str="${:,.0f}", markdown=False):
     """Redact a monetary value or quantity if redaction is enabled"""
     if st.session_state.get('redact_toggle', False):
         # Use simple text that won't interfere with HTML
-        return redaction_text
+        return redaction_text if not markdown else redaction_text_markdown
     else:
         return format_str.format(value)
 
-def redact_quantity(quantity):
+def redact_quantity(quantity, markdown=False):
     """Redact quantity values"""
     if st.session_state.get('redact_toggle', False):
-        return redaction_text
+        return redaction_text if not markdown else redaction_text_markdown
     else:
         return f"{quantity:.1f}"
 
@@ -294,12 +295,7 @@ def main():
             "Redact Values", 
             key="redact_toggle",
             help="Hide account balances, market values, and quantities for privacy. Prices and percentages remain visible."
-        )        
-        
-        # Cache clear button for debugging
-        if st.button("🔄 Refresh Data", help="Clear cache and reload portfolio data"):
-            st.cache_data.clear()
-            st.rerun()
+        )
         
         if redact_values:
             st.info("**Privacy Mode Active**\n\nHidden: Account balances, market values, quantities\n\nVisible: Prices, percentages, symbols")
@@ -369,18 +365,43 @@ def main():
         # Calculate total annual dividend income
         total_dividend_income = sum(pos.get('annual_dividend_income', 0) for pos in portfolio_data)
         
-        # Use a single markdown block with line breaks for tighter spacing
-        account_summary = f"""
-        <div style='line-height: 1.8;'>
-        <span style='color:#888'>Portfolio Value:</span> <strong>{redact_value(net_market_value)}</strong> (<span style='color:{gain_color}; font-weight:bold'>{redact_value(total_gain_loss, '{:+,.0f}')}, {total_gain_loss_pct:+.1f}%</span>)<br>
-        <span style='color:#888'>Equity:</span> <strong>{redact_value(net_account_value)}</strong> (<span style='color:{margin_color}; font-weight:bold'>{margin_utilization:.1f}%</span>)<br>
-        <span style='color:#888'>Annual Dividend Income:</span> <strong>{redact_value(total_dividend_income)}</strong><br>
-        <span style='color:#888'>Margin Buying Power:</span> <strong>{redact_value(margin_buying_power)}</strong><br>
-        <span style='color:#888'>Cash Available:</span> <strong>{redact_value(cash_available)}</strong><br>
-        <span style='color:#888'>Margin Balance:</span> <strong>{redact_value(margin_balance)}</strong>
-        </div>
+        # Create compact HTML table with color coding and left-aligned numbers
+        balance_html = f"""
+        <table style="font-size: 0.9rem; line-height: 1.8; border-collapse: collapse;">
+            <tr>
+                <td style="color: #888; padding: 4px 6px; width: 50%;">Portfolio Value</td>
+                <td style="color: #e0e0e0; font-weight: bold; text-align: left; padding: 4px 6px;">
+                    {redact_value(net_market_value)} 
+                    <span style="color: {gain_color};">({redact_value(total_gain_loss, '{:+,.0f}')}, {total_gain_loss_pct:+.1f}%)</span>
+                </td>
+            </tr>
+            <tr>
+                <td style="color: #888; padding: 4px 6px;">Equity</td>
+                <td style="color: #e0e0e0; font-weight: bold; text-align: left; padding: 4px 6px;">
+                    {redact_value(net_account_value)} 
+                    <span style="color: {margin_color};">({margin_utilization:.1f}%)</span>
+                </td>
+            </tr>
+            <tr>
+                <td style="color: #888; padding: 4px 6px;">Margin Buying Power</td>
+                <td style="color: #e0e0e0; font-weight: bold; text-align: left; padding: 4px 6px;">{redact_value(margin_buying_power)}</td>
+            </tr>
+            <tr>
+                <td style="color: #888; padding: 4px 6px;">Cash Available</td>
+                <td style="color: #e0e0e0; font-weight: bold; text-align: left; padding: 4px 6px;">{redact_value(cash_available)}</td>
+            </tr>
+            <tr>
+                <td style="color: #888; padding: 4px 6px;">Margin Balance</td>
+                <td style="color: #e0e0e0; font-weight: bold; text-align: left; padding: 4px 6px;">{redact_value(margin_balance)}</td>
+            </tr>
+            <tr>
+                <td style="color: #888; padding: 4px 6px;">Annual Dividend Income</td>
+                <td style="color: #e0e0e0; font-weight: bold; text-align: left; padding: 4px 6px;">{redact_value(total_dividend_income)}</td>
+            </tr>            
+        </table>
         """
-        st.markdown(account_summary, unsafe_allow_html=True)
+        
+        st.markdown(balance_html, unsafe_allow_html=True)
     
     # Right pane - Portfolio Distribution (pie chart only)
     with col2:
@@ -478,7 +499,7 @@ def main():
         
         # Bucket header with totals
         gain_color = "green" if bucket_gain_loss >= 0 else "red"
-        st.markdown(f"<span style='color:#888'>{bucket_name}:</span> <strong>{redact_value(bucket_total)}</strong> (<span style='color:{gain_color}; font-weight:bold'>{redact_value(bucket_gain_loss, '{:+,.0f}')}</span>)", unsafe_allow_html=True)
+        st.markdown(f"<span style='color:#888'>{bucket_name}:</span> <strong>{redact_value(bucket_total, markdown=True)}</strong> (<span style='color:{gain_color}; font-weight:bold'>{redact_value(bucket_gain_loss, '{:+,.0f}', markdown=True)}</span>)", unsafe_allow_html=True)
         
         # Create dataframe for this bucket
         bucket_df = pd.DataFrame([
@@ -500,10 +521,10 @@ def main():
         
         # Apply redaction to sensitive columns
         if st.session_state.get('redact_toggle', False):
-            bucket_df['Market Value'] = bucket_df['Market Value'].apply(lambda x: "***")
-            bucket_df['Quantity'] = bucket_df['Quantity'].apply(lambda x: "***")
-            bucket_df['Gain/Loss'] = bucket_df['Gain/Loss'].apply(lambda x: "***")
-            bucket_df['Div Income'] = bucket_df['Div Income'].apply(lambda x: "***" if x != '-' else '-')
+            bucket_df['Market Value'] = bucket_df['Market Value'].apply(lambda x: redaction_text)
+            bucket_df['Quantity'] = bucket_df['Quantity'].apply(lambda x: redaction_text)
+            bucket_df['Gain/Loss'] = bucket_df['Gain/Loss'].apply(lambda x: redaction_text)
+            bucket_df['Div Income'] = bucket_df['Div Income'].apply(lambda x: redaction_text if x != '-' else '-')
         
         # Style and format the dataframe
         styled_df = bucket_df.style.map(style_gain_loss, subset=['Gain/Loss', 'G/L %'])
