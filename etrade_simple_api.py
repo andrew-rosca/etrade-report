@@ -286,11 +286,33 @@ class ETradeSimpleAPI:
         return self._parse_xml_response(response)
 
     def get_account_balance(self, account_id_key: str) -> Dict[str, Any]:
-        """Get account balance using computed method (E*TRADE balance API is consistently broken)."""
-        # E*TRADE's balance API endpoints consistently return 500 errors
-        # Skip the broken API and go straight to computed method
-        print("ℹ️  Using computed balance (E*TRADE balance API unavailable)")
-        return self.get_account_balance_computed(account_id_key)
+        """Get account balance from E*TRADE API with proper parameters."""
+        # Use the correct API endpoint with required parameters
+        endpoint = f'/v1/accounts/{account_id_key}/balance'
+        params = {
+            'instType': 'BROKERAGE',  # Required parameter
+            'realTimeNAV': 'true'     # Get real-time values
+        }
+        
+        try:
+            response = self._make_authenticated_request('GET', endpoint, params=params)
+            result = self._parse_xml_response(response)
+            
+            # Check for error responses
+            if 'raw_text' in result and 'Internal Server Error' in str(result['raw_text']):
+                print("⚠️  Balance API returned error, using computed method...")
+                return self.get_account_balance_computed(account_id_key)
+            elif 'Computed' not in result or 'accountId' not in result:
+                print(f"⚠️  Unexpected balance response format, keys: {list(result.keys())}")
+                print("Using computed method...")
+                return self.get_account_balance_computed(account_id_key)
+                
+            print("✅ Successfully retrieved balance from E*TRADE API")
+            return result
+            
+        except Exception as e:
+            print(f"⚠️  Balance API call failed: {e}, using computed method...")
+            return self.get_account_balance_computed(account_id_key)
     
     def get_account_balance_computed(self, account_id_key: str) -> Dict[str, Any]:
         """Get account balance using computed method from positions and account type."""

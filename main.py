@@ -102,16 +102,24 @@ def get_account_data(api: ETradeSimpleAPI) -> tuple[dict, dict, dict]:
         print(f"⚠️  Account response: {accounts}")
         raise Exception("Failed to retrieve account list")
     
-    # Find the first active account
+    # Find the active margin account (preferred) or any active account
     account_list = accounts['Accounts']['Account']
     if not isinstance(account_list, list):
         account_list = [account_list]
     
     active_account = None
+    # First, look for an active margin account
     for account in account_list:
-        if account.get('accountStatus') == 'ACTIVE':
+        if account.get('accountStatus') == 'ACTIVE' and account.get('accountMode') == 'MARGIN':
             active_account = account
             break
+    
+    # If no active margin account found, fall back to any active account
+    if not active_account:
+        for account in account_list:
+            if account.get('accountStatus') == 'ACTIVE':
+                active_account = account
+                break
     
     if not active_account:
         raise Exception("No active accounts found")
@@ -119,13 +127,13 @@ def get_account_data(api: ETradeSimpleAPI) -> tuple[dict, dict, dict]:
     account_key = active_account['accountIdKey']
     print(f"📋 Using account: {active_account['accountDesc']} ({active_account['accountId']})")
     
-    # Get computed account balance (E*TRADE balance API is broken)
+    # Get account balance from E*TRADE API
     balance = {}
     try:
         balance = api.get_account_balance(account_key)
-        print("✅ Balance information computed")
+        print("✅ Balance information retrieved")
     except Exception as e:
-        print(f"⚠️  Warning: Could not compute account balance: {e}")
+        print(f"⚠️  Warning: Could not retrieve account balance: {e}")
         balance = {'error': str(e)}
     
     # Get portfolio positions
@@ -220,17 +228,41 @@ def main():
         
         # Extract balance information 
         if balance_info and not balance_info.get('error'):
-            # Use actual or computed balance data
-            account_obj = AccountInfo(
-                total_account_value=balance_info.get('total_account_value', total_portfolio_value),
-                cash_available_for_investment=balance_info.get('cash_available_for_investment', 0.0),
-                margin_buying_power=balance_info.get('margin_buying_power', 0.0),
-                margin_balance=balance_info.get('margin_balance', 0.0),
-                net_account_value=balance_info.get('net_account_value', total_portfolio_value)
-            )
-            
             if balance_info.get('computed'):
+                # Using computed balance data
+                account_obj = AccountInfo(
+                    total_account_value=balance_info.get('total_account_value', total_portfolio_value),
+                    cash_available_for_investment=balance_info.get('cash_available_for_investment', 0.0),
+                    margin_buying_power=balance_info.get('margin_buying_power', 0.0),
+                    margin_balance=balance_info.get('margin_balance', 0.0),
+                    net_account_value=balance_info.get('net_account_value', total_portfolio_value)
+                )
                 print("ℹ️  Balance calculated from portfolio value and margin estimates")
+            else:
+                # Using real E*TRADE API balance data
+                computed = balance_info.get('Computed', {})
+                
+                # Extract values from the Computed section
+                cash_available = float(computed.get('totalAvailableForWithdrawal', 0.0))
+                margin_buying_power = float(computed.get('marginBuyingPower', 0.0))
+                margin_balance = float(computed.get('marginBalance', 0.0))  # Negative = debt
+                
+                # Get real-time total account value (net equity)
+                real_time_values = computed.get('RealTimeValues', {})
+                if isinstance(real_time_values, dict):
+                    net_account_value = float(real_time_values.get('totalAccountValue', 0.0))
+                else:
+                    # Fallback to regulatory equity if RealTimeValues not available
+                    net_account_value = float(computed.get('regtEquity', 0.0))
+                
+                account_obj = AccountInfo(
+                    total_account_value=total_portfolio_value,  # Use live market value from positions
+                    cash_available_for_investment=cash_available,
+                    margin_buying_power=margin_buying_power,
+                    margin_balance=margin_balance,
+                    net_account_value=net_account_value
+                )
+                print("✅ Using real E*TRADE balance data")
         else:
             # Fallback to basic portfolio value
             account_obj = AccountInfo(
