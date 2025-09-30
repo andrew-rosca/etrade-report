@@ -6,7 +6,7 @@ A beautiful, interactive web dashboard for E*TRADE portfolio analysis.
 Run with: streamlit run streamlit_dashboard.py
 
 Fea    # Top refresh controls
-    col_refresh, col_time = st.columns([1, 4])
+    col_refresh, col_time = st.columns([0.7, 6])
     with col_refresh:
         if st.button("Refresh", type="primary"):
             st.cache_data.clear()
@@ -262,7 +262,7 @@ def main():
         bucket_names = []
         bucket_values = []
         bucket_colors = []
-        color_map = {"Growth": "#2E8B57", "Income": "#4169E1", "Hedge": "#FF8C00", "Unassigned": "#708090"}
+        color_map = {"Core Growth": "#1E90FF", "Growth": "#2E8B57", "Income": "#4169E1", "Hedge": "#FF8C00", "Unassigned": "#708090"}
         
         for bucket_name, bucket_info in buckets.items():
             if bucket_info['total_value'] > 0:
@@ -310,7 +310,7 @@ def main():
         return ''
     
     # Define bucket display order (Hedge last)
-    bucket_order = ['Growth', 'Income', 'Unassigned', 'Hedge']
+    bucket_order = ['Core Growth', 'Growth', 'Income', 'Unassigned', 'Hedge']
     
     # Sort buckets by the defined order
     sorted_buckets = []
