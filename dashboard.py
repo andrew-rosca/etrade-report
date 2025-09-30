@@ -26,14 +26,26 @@ from portfolio_analyzer import PortfolioAnalyzer, PortfolioPosition
 from main import transform_etrade_position
 from balance_history import BalanceHistoryReconstructor
 
-def format_dividend_date(timestamp):
-    """Convert E*TRADE timestamp to readable date format."""
+def format_dividend_date(timestamp, highlight_if_soon=False, use_dollar_sign=False):
+    """Convert E*TRADE timestamp to readable date format, with optional highlighting."""
     if not timestamp or timestamp == '':
         return ''
     try:
         # E*TRADE timestamps are in milliseconds
         dt = datetime.fromtimestamp(int(timestamp) / 1000)
-        return dt.strftime('%m/%d/%y')
+        date_str = dt.strftime('%m/%d/%y')
+
+        # If highlight_if_soon is True, check if date is within 5 days
+        if highlight_if_soon:
+            days_until = (dt.date() - datetime.now().date()).days
+            if 0 <= days_until <= 5:
+                # Use $ for pay dates, orange circle for ex-dividend dates
+                if use_dollar_sign:
+                    return f'{date_str} 💲'
+                else:
+                    return f'{date_str} 🟠'
+
+        return date_str
     except (ValueError, TypeError):
         return ''
 
@@ -626,8 +638,8 @@ def main():
                 'Div Yield': format_dividend_yield(pos.get('div_yield', 0)),
                 'Annual Div': format_dividend_value(pos.get('annual_dividend', 0)),
                 'Div Income': format_dividend_income(pos.get('annual_dividend_income', 0)),
-                'Pay Date': format_dividend_date(pos.get('div_pay_date', '')),
-                'Ex-Div Date': format_dividend_date(pos.get('ex_dividend_date', ''))
+                'Pay Date': format_dividend_date(pos.get('div_pay_date', ''), highlight_if_soon=True, use_dollar_sign=True),
+                'Ex-Div Date': format_dividend_date(pos.get('ex_dividend_date', ''), highlight_if_soon=True)
             }
             for pos in sorted(filtered_positions, key=lambda x: x['market_value'], reverse=True)
         ])
