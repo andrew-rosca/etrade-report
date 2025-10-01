@@ -206,18 +206,63 @@ class TransactionCache:
         # Check if we need fresh data by fetching recent transactions
         print("🔍 Checking for new transactions...")
         recent_transactions = self._fetch_recent_transactions(account_id_key, 50)
-        
+
         if not recent_transactions:
             print("⚠️  No recent transactions found, using cache")
             return self._filter_by_date_range(cached_transactions, days_back)
-        
-        # Check if any recent transactions are new (not in cache)
+
+        # Build set of current API transaction IDs
+        api_ids = {t.get('transactionId') for t in recent_transactions}
         cached_ids = {t.get('transactionId') for t in cached_transactions}
+
+        # Find new transactions (in API but not in cache)
         new_transactions = [t for t in recent_transactions if t.get('transactionId') not in cached_ids]
-        
-        if new_transactions:
-            print(f"✨ Found {len(new_transactions)} new transactions, updating cache...")
-            # Merge new transactions with cache and sort by date (newest first)
+
+        # Find the oldest transaction timestamp in the API response
+        # Transactions are in reverse chronological order, so we need to find the oldest one
+        oldest_api_timestamp = None
+        for t in recent_transactions:
+            try:
+                trans_date_ms = int(t.get('transactionDate', 0))
+                if oldest_api_timestamp is None or trans_date_ms < oldest_api_timestamp:
+                    oldest_api_timestamp = trans_date_ms
+            except (ValueError, TypeError):
+                continue
+
+        if oldest_api_timestamp is None:
+            print("⚠️  No valid timestamps in API response, using cache")
+            return self._filter_by_date_range(cached_transactions, days_back)
+
+        oldest_api_datetime = datetime.fromtimestamp(oldest_api_timestamp / 1000)
+        print(f"📅 API response goes back to {oldest_api_datetime.strftime('%m/%d/%Y %H:%M:%S')}")
+
+        # Find stale transactions (in cache but no longer in API)
+        # Logic: If a cached transaction is NEWER than the oldest API transaction,
+        # but it's NOT in the API response, then it must have been deleted/replaced at source
+        stale_ids = set()
+
+        for t in cached_transactions:
+            try:
+                trans_date_ms = int(t.get('transactionDate', 0))
+
+                # Only reconcile if this cached transaction is newer than oldest API transaction
+                if trans_date_ms >= oldest_api_timestamp:
+                    # If this cached transaction is not in the API response, it's stale
+                    if t.get('transactionId') not in api_ids:
+                        stale_ids.add(t.get('transactionId'))
+            except (ValueError, TypeError):
+                continue
+
+        # Remove stale transactions from cache
+        if stale_ids:
+            print(f"🧹 Removing {len(stale_ids)} stale transactions (pending→settled)")
+            cached_transactions = [t for t in cached_transactions if t.get('transactionId') not in stale_ids]
+            cached_ids = {t.get('transactionId') for t in cached_transactions}
+
+        if new_transactions or stale_ids:
+            if new_transactions:
+                print(f"✨ Found {len(new_transactions)} new transactions")
+            # Merge new transactions with cleaned cache and sort by date (newest first)
             all_transactions = new_transactions + cached_transactions
             all_transactions = self._sort_transactions(all_transactions)
             # Remove duplicates (shouldn't happen, but just in case)
