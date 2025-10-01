@@ -400,7 +400,7 @@ def main():
                 <td style="color: #e0e0e0; font-weight: bold; text-align: left; padding: 4px 6px;">{redact_value(cash_available)}</td>
             </tr>
             <tr>
-                <td style="color: #888; padding: 4px 6px;">Margin Balance</td>
+                <td style="color: #888; padding: 4px 6px;">Cash Balance</td>
                 <td style="color: #e0e0e0; font-weight: bold; text-align: left; padding: 4px 6px;">{redact_value(margin_balance)}</td>
             </tr>
             <tr>
