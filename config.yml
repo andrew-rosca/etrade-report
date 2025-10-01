@@ -29,6 +29,15 @@ buckets:
     - BRKW
     - BTCI
     - SPYI
+    - PLTY
+    - SMCY
+    - HOOY
+    - TSYY
+    - MSTY
+    - NVDY
+    - IWMY
+    - QDTE
+    - XBTY
   
   Hedge:
     - SPY*     # Matches SPY stock and any SPY options
