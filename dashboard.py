@@ -25,6 +25,8 @@ from etrade_simple_api import ETradeSimpleAPI
 from portfolio_analyzer import PortfolioAnalyzer, PortfolioPosition
 from main import transform_etrade_position
 from balance_history import BalanceHistoryReconstructor
+from concentration_analyzer import ConcentrationAnalyzer
+import yaml
 
 def format_dividend_date(timestamp, highlight_if_soon=False, use_dollar_sign=False):
     """Convert E*TRADE timestamp to readable date format, with optional highlighting."""
@@ -718,6 +720,144 @@ def main():
         
         st.dataframe(styled_df, width='stretch', hide_index=True)
         st.markdown("")  # Add some spacing between buckets
+    
+    # Concentration Analysis Section
+    st.markdown("---")
+    st.markdown("<span style='color:#888; font-size: 1.1rem;'>Portfolio Concentration Analysis</span>", unsafe_allow_html=True)
+    st.markdown("")
+    
+    # Load config and create concentration analyzer
+    try:
+        with open('config.yml', 'r') as f:
+            config = yaml.safe_load(f)
+        
+        concentration_analyzer = ConcentrationAnalyzer(config)
+        top_n = config.get('settings', {}).get('top_concentrations', 10)
+        
+        # Calculate concentrations
+        concentrations = concentration_analyzer.calculate_concentrations(portfolio_data, top_n=top_n)
+        
+        if concentrations:
+            # Create dataframe for concentration table
+            concentration_data = []
+            for item in concentrations:
+                # Determine primary symbols contributing to this concentration
+                symbols = sorted(
+                    set(pos['symbol'] for pos in item.contributing_positions),
+                    key=lambda s: sum(p['exposure_value'] for p in item.contributing_positions if p['symbol'] == s),
+                    reverse=True
+                )
+                
+                # Create symbol list with exposure details
+                symbol_details = []
+                for symbol in symbols[:5]:  # Show top 5 contributing symbols
+                    symbol_positions = [p for p in item.contributing_positions if p['symbol'] == symbol]
+                    total_symbol_exposure = sum(p['exposure_value'] for p in symbol_positions)
+                    
+                    # Get factor info
+                    factors = set(p['factor'] for p in symbol_positions)
+                    if len(factors) == 1 and list(factors)[0] != 1.0:
+                        factor_text = f" ({list(factors)[0]:.2f}x)"
+                    else:
+                        factor_text = ""
+                    
+                    symbol_details.append(f"{symbol}{factor_text}")
+                
+                # Add ellipsis if there are more symbols
+                if len(symbols) > 5:
+                    symbol_details.append(f"... +{len(symbols) - 5} more")
+                
+                concentration_data.append({
+                    'Underlying Asset': item.underlying,
+                    'Exposure': item.total_exposure,
+                    '% Portfolio': item.percentage,
+                    'Via Positions': ', '.join(symbol_details),
+                    'Position Count': len(set(pos['symbol'] for pos in item.contributing_positions))
+                })
+            
+            # Create and style dataframe
+            concentration_df = pd.DataFrame(concentration_data)
+            
+            # Format based on redaction state
+            if st.session_state.get('redact_toggle', False):
+                styled_concentration = concentration_df.style.format({
+                    'Exposure': lambda x: to_upside_down(f'${x:,.0f}'),
+                    '% Portfolio': '{:.2f}%',
+                    'Via Positions': '{}',
+                    'Position Count': '{:d}'
+                })
+            else:
+                styled_concentration = concentration_df.style.format({
+                    'Exposure': '${:,.0f}',
+                    '% Portfolio': '{:.2f}%',
+                    'Via Positions': '{}',
+                    'Position Count': '{:d}'
+                })
+            
+            # Add color coding for high concentration percentages
+            def highlight_concentration(val):
+                if isinstance(val, (int, float)):
+                    if val >= 15:
+                        return 'color: #FF6B6B; font-weight: bold'  # Red for high concentration
+                    elif val >= 10:
+                        return 'color: #FFD93D; font-weight: bold'  # Yellow for moderate
+                return ''
+            
+            styled_concentration = styled_concentration.map(highlight_concentration, subset=['% Portfolio'])
+            
+            st.dataframe(styled_concentration, width='stretch', hide_index=True)
+            
+            # Add concentration insights
+            top_3_pct = sum(item.percentage for item in concentrations[:3])
+            st.markdown(f"<span style='color:#888; font-size: 0.9rem;'>Top 3 concentrations represent {top_3_pct:.1f}% of portfolio</span>", unsafe_allow_html=True)
+            
+            # Show exposure chain examples for positions with mappings
+            with st.expander("🔍 View Exposure Chains", expanded=False):
+                st.markdown("<span style='color:#888; font-size: 0.9rem;'>Shows how positions are mapped to underlying assets:</span>", unsafe_allow_html=True)
+                st.markdown("")
+                
+                # Find interesting exposure chains (ones with mappings)
+                chains_shown = set()
+                for pos in portfolio_data[:20]:  # Check first 20 positions
+                    symbol = pos['symbol'].upper()
+                    if symbol not in concentration_analyzer.exposure_mappings:
+                        continue
+                    
+                    chains = concentration_analyzer.get_exposure_chain(symbol)
+                    
+                    # Skip if no mapping
+                    if len(chains) == 1 and len(chains[0]) == 1:
+                        continue
+                    
+                    # Handle single chain
+                    if len(chains) == 1:
+                        chain = chains[0]
+                        chain_key = tuple(c[0] for c in chain)
+                        if chain_key not in chains_shown:
+                            chains_shown.add(chain_key)
+                            chain_str = ' → '.join(f"{c[0]} ({c[1]:.2f}x)" if c[1] != 1.0 else c[0] for c in chain)
+                            st.markdown(f"• {chain_str}")
+                    else:
+                        # Handle multiple chains
+                        st.markdown(f"**{symbol}:**")
+                        for i, chain in enumerate(chains[:5], 1):  # Show first 5 chains
+                            chain_key = tuple(c[0] for c in chain)
+                            if chain_key not in chains_shown:
+                                chains_shown.add(chain_key)
+                                chain_str = ' → '.join(f"{c[0]} ({c[1]:.2f}x)" if c[1] != 1.0 else c[0] for c in chain)
+                                st.markdown(f"  • {chain_str}")
+                        if len(chains) > 5:
+                            st.markdown(f"  <span style='color:#888; font-size: 0.85rem;'>... and {len(chains) - 5} more</span>", unsafe_allow_html=True)
+                
+                if not chains_shown:
+                    st.markdown("<span style='color:#888; font-size: 0.9rem;'>No exposure mappings found in current positions</span>", unsafe_allow_html=True)
+        else:
+            st.info("No concentration data available")
+            
+    except Exception as e:
+        st.error(f"❌ Error calculating concentrations: {e}")
+        import traceback
+        st.code(traceback.format_exc())
 
 if __name__ == "__main__":
     main()

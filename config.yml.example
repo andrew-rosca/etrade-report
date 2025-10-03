@@ -72,17 +72,20 @@ settings:
 # ============================================================================
 # Define how positions map to underlying assets for concentration analysis
 #
-# Format: SYMBOL: UNDERLYING  or  SYMBOL: UNDERLYING*factor
+# SIMPLE FORMAT: Just one line per mapping!
+#   SYMBOL: UNDERLYING              # 1:1 exposure (factor defaults to 1.0)
+#   SYMBOL: UNDERLYING*factor       # Proportional exposure
 #
 # Examples:
-#   MSTR: Bitcoin              # 1:1 exposure (factor defaults to 1.0)
-#   SPYG: NVDA*0.14           # 14% exposure to NVDA
-#   MSTY: MSTR                # Chains to Bitcoin through MSTR
+#   MSTR: Bitcoin                   # MSTR has 1:1 exposure to Bitcoin
+#   SPYG: NVDA*0.14                # SPYG holds 14% NVDA
+#   MSTY: MSTR                      # MSTY maps to MSTR (which chains to Bitcoin)
 #
 # The analyzer automatically:
-# - Handles chained exposures (MSTY → MSTR → Bitcoin)
-# - Multiplies factors along chains
-# - Aggregates all positions to the same ultimate underlying
+# - Resolves chained exposures (MSTY → MSTR → Bitcoin)
+# - Multiplies factors along chains (TQQI → TQQQ*3.0 → QQQ = 3x exposure)
+# - Aggregates all positions with same ultimate underlying
+#
 # ============================================================================
 
 exposure_mappings:

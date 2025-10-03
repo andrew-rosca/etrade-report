@@ -10,6 +10,7 @@ An interactive Streamlit dashboard for E*TRADE portfolios with real-time data vi
 - **Interactive Dashboard**: Real-time portfolio visualization with Streamlit
 - **Bucket Allocation**: Categorize your holdings into custom buckets (Growth, Income, Hedge, etc.)
 - **Portfolio Analysis**: View allocation percentages, position details, and performance metrics
+- **Concentration Analysis**: Track exposure to underlying assets through direct and indirect holdings
 - **Cash Flow History**: Visualize daily cash flow with interactive charts
 - **Margin Monitoring**: Track margin utilization and available cash
 - **Privacy Mode**: Redact sensitive values
@@ -228,6 +229,14 @@ Once logged in, you'll see:
 - Upcoming dividend alerts (🟠 for ex-div, 💲 for pay date)
 - Searchable and sortable
 
+### 5. Concentration Analysis (Bottom)
+- Top N most concentrated exposures in your portfolio
+- Aggregates direct and indirect holdings to underlying assets
+- Shows exposure chains (e.g., MSTY → MSTR → Bitcoin)
+- Supports proportional exposure (e.g., SPYG holds 14% NVDA)
+- Color-coded warnings for high concentration risk
+- Expandable view showing full exposure mappings
+
 ## Configuration Options
 
 The `config.yml` file supports the following settings:
@@ -240,7 +249,87 @@ settings:
   # Display precision
   percentage_precision: 2
   dollar_precision: 2
+  
+  # Number of top concentrations to display
+  top_concentrations: 10
 ```
+
+### Concentration Analysis Configuration
+
+The concentration analysis feature helps you understand your portfolio's exposure to underlying assets, even through indirect holdings like ETFs. Configure exposure mappings in `config.yml`:
+
+```yaml
+exposure_mappings:
+  SYMBOL: UNDERLYING              # 1:1 exposure (default)
+  SYMBOL: UNDERLYING*factor       # Proportional exposure
+  SYMBOL:                         # Multiple exposures (list)
+    - UNDERLYING1*factor1
+    - UNDERLYING2*factor2
+```
+
+**Examples:**
+
+1. **Direct Exposure (1:1)** - Symbol tracks underlying 1:1
+   ```yaml
+   MSTY: MSTR              # MSTY has full exposure to MSTR
+   NVDY: NVDA              # NVDY tracks NVDA 1:1
+   MSTR: Bitcoin           # MSTR tracks Bitcoin
+   ```
+
+2. **Proportional Exposure** - Use `*factor` notation
+   ```yaml
+   BRK.B: AAPL*0.22       # Berkshire holds 22% Apple
+   CRF: AAPL*0.0695       # CEF holds 6.95% Apple
+   ```
+
+3. **Multiple Exposures** - ETFs with multiple top holdings
+   ```yaml
+   SPYG:                  # S&P 500 Growth ETF
+     - NVDA*0.1469        # 14.69% NVIDIA
+     - MSFT*0.0636        # 6.36% Microsoft
+     - AAPL*0.0560        # 5.60% Apple
+     - AVGO*0.0507        # 5.07% Broadcom
+     # ... add more holdings
+   ```
+
+4. **Chained Exposure** - Automatically resolves through multiple levels
+   ```yaml
+   MSTY: MSTR             # MSTY tracks MSTR
+   MSTR: Bitcoin          # MSTR tracks Bitcoin
+   # Result: MSTY → MSTR → Bitcoin (auto-calculated)
+   ```
+
+5. **Aggregated Exposure** - Multiple instruments to same underlying
+   ```yaml
+   MSTR: Bitcoin
+   BTCI: Bitcoin
+   XBTY: Bitcoin
+   # All Bitcoin exposure is aggregated together
+   ```
+
+**How It Works:**
+
+- The analyzer recursively resolves exposure chains
+- Factors are multiplied along the chain (e.g., 3x leverage × 8% holding = 24% exposure)
+- All exposures to the same underlying asset are summed
+- Top N concentrations are displayed with color-coded risk warnings
+
+**Concentration Risk Levels:**
+- 🔴 **High Risk** (≥15%): Red text - consider diversification
+- 🟡 **Moderate** (10-15%): Yellow text - monitor closely
+- ⚪ **Normal** (<10%): Standard text
+
+**Testing Your Configuration:**
+
+After adding exposure mappings, test them with:
+```bash
+python test_concentration.py
+```
+
+This will show you:
+- Calculated concentrations for sample positions
+- Exposure chains for each mapped symbol
+- Whether your mappings are working correctly
 
 ## Troubleshooting
 
