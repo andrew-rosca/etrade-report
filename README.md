@@ -311,4 +311,6 @@ If you get a "command not found" error when running `python3`:
 
 ## License
 
-This project is for educational and personal use. Please comply with E*TRADE's API terms of service.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+**Note**: This project is for educational and personal use. Please comply with E*TRADE's API terms of service when using their API.
