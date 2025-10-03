@@ -1,15 +1,17 @@
-# E*TRADE Portfolio Report Generator
+# E*TRADE Portfolio Dashboard
 
-A Python application that generates comprehensive portfolio reports from E*TRADE accounts, categorizing holdings into configurable buckets and showing margin utilization.
+An interactive Streamlit dashboard for E*TRADE portfolios with real-time data visualization, bucket allocation analysis, and cash flow tracking.
 
 ## Features
 
+- **Interactive Dashboard**: Real-time portfolio visualization with Streamlit
 - **Bucket Allocation**: Categorize your holdings into custom buckets (Growth, Income, Hedge, etc.)
 - **Portfolio Analysis**: View allocation percentages, position details, and performance metrics
+- **Cash Flow History**: Visualize daily cash flow with interactive charts
 - **Margin Monitoring**: Track margin utilization and available cash
+- **Privacy Mode**: Redact sensitive values using upside-down Unicode numbers
+- **Dividend Tracking**: Monitor dividend yields, payment dates, and annual income
 - **Configuration Management**: Easy-to-edit YAML configuration for bucket assignments
-- **Unassigned Position Warnings**: Highlights positions that need bucket assignment
-- **Colorized Output**: Easy-to-read terminal reports with color coding
 
 ## Setup
 
@@ -59,62 +61,60 @@ buckets:
 
 ## Usage
 
-### Basic Usage
+### Run the Dashboard
 
 ```bash
-python main.py
+streamlit run dashboard.py
 ```
 
-### Advanced Options
+The dashboard will open in your default browser at `http://localhost:8501`
 
-```bash
-# Use custom config file
-python main.py --config my_config.yml
+### Dashboard Features
 
-# Analyze specific account
-python main.py --account ACCOUNT_ID
-
-# Disable colored output
-python main.py --no-color
-```
+- **Auto-refresh**: Click "Refresh Data" to update with latest portfolio information
+- **Privacy Mode**: Toggle "Redact Values" to hide sensitive account balances and quantities
+- **Time Range Selector**: View cash flow history for 7, 14, 30, 60, or 90 days
+- **Interactive Charts**: Hover over charts for detailed information
+- **Bucket Views**: Positions organized by configured buckets with color-coded gains/losses
 
 ## Authentication Flow
 
 The application uses OAuth 1.0a authentication with E*TRADE:
 
-1. Run the script
-2. Visit the authorization URL displayed
+1. Run the dashboard
+2. Browser automatically opens to E*TRADE authorization page
 3. Log in to your E*TRADE account
 4. Copy the verification code
 5. Paste it into the terminal
+6. Tokens are cached for up to 12 hours
 
-## Report Sections
+## Dashboard Sections
 
-### 1. Portfolio Summary
-- Total portfolio value
-- Overall gain/loss
-- Position count
-
-### 2. Bucket Allocation
-- Value and percentage for each bucket
-- Position count per bucket
-- Highlights unassigned positions in red
-
-### 3. Margin & Cash Information
-- Net account value
-- Available cash for investment
+### 1. Account Overview (Left Panel)
+- Portfolio value with gain/loss
+- Net equity with margin utilization
 - Margin buying power
-- Margin utilization percentage
+- Cash balances
+- Annual dividend income
 
-### 4. Unassigned Positions Warning
-- Lists positions not assigned to any bucket
-- Shows market value for each unassigned position
-- Provides guidance for updating configuration
+### 2. Portfolio Distribution (Center Panel)
+- Interactive pie chart showing bucket allocation
+- Percentages for each bucket
+- Color-coded by bucket type
 
-### 5. Bucket Details
-- Detailed position information for each bucket
-- Individual position performance
-- Sorted by market value
+### 3. Cash Flow History (Right Panel)
+- Daily cash flow bar chart
+- Total inflow/outflow statistics
+- Selectable time periods (7-90 days)
+- Hover for transaction details
+
+### 4. Position Tables (Bottom)
+- Positions organized by bucket
+- Market value, quantity, current price
+- Gain/loss with color coding (green/red)
+- Dividend information (yield, annual dividend, pay dates)
+- Upcoming dividend alerts (🟠 for ex-div, 💲 for pay date)
+- Searchable and sortable
 
 ## Configuration Options
 
@@ -130,22 +130,22 @@ settings:
   dollar_precision: 2
 ```
 
-## Exit Codes
-
-- `0`: Success
-- `1`: General error (authentication, API, configuration)
-- `2`: Success but with unassigned positions (warning)
-
 ## Troubleshooting
 
 ### Authentication Issues
-- Ensure your API credentials are correct
-- Check if you're using sandbox vs production endpoints
-- Verify your E*TRADE account has API access enabled
+- Ensure your API credentials are correct in `.env`
+- Browser should auto-open; if not, copy/paste the URL manually
+- Tokens are cached for up to 12 hours
+- If tokens expire, dashboard will prompt for re-authentication
+
+### Dashboard Won't Load
+- Ensure Streamlit is installed: `pip install streamlit`
+- Check if port 8501 is available
+- Try running: `streamlit run dashboard.py --server.port 8502`
 
 ### Missing Positions
 - Check the `min_position_value` setting in config.yml
-- Ensure positions have positive quantities (short positions are excluded)
+- Verify positions have positive quantities
 
 ### Configuration Errors
 - Validate YAML syntax in config.yml
@@ -156,31 +156,9 @@ settings:
 
 - Never commit your `.env` file to version control
 - Keep your API credentials secure
+- Use privacy mode when sharing screenshots
+- Token cache (`.etrade_tokens.json`) should also be excluded from version control
 - Use sandbox mode for testing
-- Regularly rotate your API keys
-
-## Sample Output
-
-```
-================================================================================
-                               PORTFOLIO SUMMARY
-================================================================================
-Report Generated: 2025-09-29 14:30:15
-Total Portfolio Value: $125,450.67
-Total Positions: 15
-Total Gain/Loss: +$8,245.32 (7.03%)
-
-================================================================================
-                              BUCKET ALLOCATION
-================================================================================
-┌─────────┬───────────┬──────────────┬──────────────┐
-│ Bucket  │ Positions │ Value        │ Allocation % │
-├─────────┼───────────┼──────────────┼──────────────┤
-│ Growth  │ 8         │ $75,270.40   │ 60.00%       │
-│ Income  │ 5         │ $37,635.20   │ 30.00%       │
-│ Hedge   │ 2         │ $12,545.07   │ 10.00%       │
-└─────────┴───────────┴──────────────┴──────────────┘
-```
 
 ## License
 
