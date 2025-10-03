@@ -578,7 +578,23 @@ def main():
                             plot_bgcolor='rgba(0,0,0,0)',
                             paper_bgcolor='rgba(0,0,0,0)',
                             hovermode='x unified',
-                            bargap=0.2
+                            bargap=0.2,
+                            annotations=[
+                                dict(
+                                    text="Cash Flow",
+                                    xref="paper",
+                                    yref="paper",
+                                    x=0.5,
+                                    y=0.5,
+                                    showarrow=False,
+                                    font=dict(
+                                        size=40,
+                                        color="rgba(200,200,200,0.1)"
+                                    ),
+                                    xanchor='center',
+                                    yanchor='middle'
+                                )
+                            ]
                         )
 
                         st.plotly_chart(fig_balance, use_container_width=True, config={'displayModeBar': False})
