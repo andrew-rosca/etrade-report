@@ -13,55 +13,158 @@ An interactive Streamlit dashboard for E*TRADE portfolios with real-time data vi
 - **Dividend Tracking**: Monitor dividend yields, payment dates, and annual income
 - **Configuration Management**: Easy-to-edit YAML configuration for bucket assignments
 
+## Prerequisites
+
+Before setting up the dashboard, you'll need:
+
+### 1. Python 3.8 or higher
+
+Check if Python is installed by opening a terminal/command prompt and running:
+
+```bash
+python3 --version
+```
+
+If Python is not installed, download it from [python.org](https://www.python.org/downloads/)
+
+### 2. E*TRADE API Keys
+
+You need API credentials from E*TRADE to access your portfolio data.
+
+**To get your API keys:**
+
+1. Visit [E*TRADE Developer Portal](https://developer.etrade.com/home)
+2. Log in with your E*TRADE credentials
+3. Click "Get API Keys" or navigate to "My Keys"
+4. Create a new application:
+   - **Application Name**: Choose any name (e.g., "Portfolio Dashboard")
+   - **Description**: Brief description of your use case
+5. You'll receive two sets of keys:
+   - **Sandbox Keys**: For testing with fake data (recommended for first-time setup)
+   - **Production Keys**: For accessing your real portfolio data
+
+**Important distinctions:**
+- **Sandbox Mode**: Uses test data, won't show your real portfolio. Good for learning and testing.
+- **Production Mode**: Accesses your actual E*TRADE account data. Use this for real portfolio tracking.
+
+**Note**: Keep your API keys secure and never share them publicly.
+
 ## Setup
 
-### 1. Install Dependencies
+### Step 1: Clone or Download this Repository
+
+Download the project files to your computer.
+
+### Step 2: (Recommended) Create a Virtual Environment
+
+A virtual environment keeps this project's dependencies separate from other Python projects on your computer.
+
+**On macOS/Linux:**
+```bash
+cd etrade-report
+python3 -m venv venv
+source venv/bin/activate
+```
+
+**On Windows:**
+```bash
+cd etrade-report
+python -m venv venv
+venv\Scripts\activate
+```
+
+You'll know the virtual environment is active when you see `(venv)` in your terminal prompt.
+
+### Step 3: Install Dependencies
+
+With your virtual environment activated, install the required Python packages:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Configure E*TRADE API Credentials
+This will install Streamlit, Plotly, and other necessary libraries.
+
+### Step 4: Configure E*TRADE API Credentials
 
 1. Copy the example environment file:
    ```bash
    cp .env.example .env
    ```
 
-2. Edit `.env` with your E*TRADE API credentials:
+2. Open `.env` in a text editor and add your E*TRADE API credentials:
    ```
-   ETRADE_CLIENT_KEY=your_actual_client_key
-   ETRADE_CLIENT_SECRET=your_actual_client_secret
-   ETRADE_SANDBOX=true  # Set to false for production
+   ETRADE_CLIENT_KEY=your_actual_client_key_here
+   ETRADE_CLIENT_SECRET=your_actual_client_secret_here
+   ETRADE_SANDBOX=false
    ```
 
-### 3. Configure Portfolio Buckets
+   **Configuration notes:**
+   - Replace `your_actual_client_key_here` with your actual API key
+   - Replace `your_actual_client_secret_here` with your actual API secret
+   - Set `ETRADE_SANDBOX=true` to use sandbox mode (test data)
+   - Set `ETRADE_SANDBOX=false` to use production mode (real portfolio data)
 
-Edit `config.yml` to assign your positions to appropriate buckets:
+### Step 5: Configure Portfolio Buckets
+
+Edit `config.yml` in a text editor to organize your positions into categories (buckets):
 
 ```yaml
 buckets:
-  Growth:
+  Core Growth:
     - AAPL
     - GOOGL
     - MSFT
+    # Add your core growth stocks here
+
+  Growth:
+    - NVDA
+    - TSLA
     # Add your growth stocks here
-  
+
   Income:
     - VTI
     - SCHD
     - JEPI
     # Add your income-generating assets here
-  
+
   Hedge:
-    - GLD
-    - TLT
+    - SPY*     # Matches SPY and SPY options
+    - QQQ*     # Matches QQQ and QQQ options
     # Add your hedging positions here
 ```
 
+**Tips:**
+- Add the ticker symbols from your portfolio to the appropriate buckets
+- Use `*` as a wildcard (e.g., `SPY*` matches SPY stock and all SPY options)
+- You can create custom bucket names that fit your investment strategy
+- Positions not listed will appear in the "Unassigned" bucket
+
 ## Usage
 
-### Run the Dashboard
+### Quick Start (Recommended)
+
+Run the included shell script to start the dashboard:
+
+**On macOS/Linux:**
+```bash
+./dashboard.sh
+```
+
+**On Windows (using Git Bash or WSL):**
+```bash
+bash dashboard.sh
+```
+
+The script will:
+- Automatically activate your virtual environment if found
+- Check that all dependencies are installed
+- Start the dashboard on `http://localhost:8501`
+- Open your browser automatically
+
+### Alternative Method
+
+You can also run the dashboard directly with Streamlit:
 
 ```bash
 streamlit run dashboard.py
@@ -69,24 +172,30 @@ streamlit run dashboard.py
 
 The dashboard will open in your default browser at `http://localhost:8501`
 
+**To stop the dashboard:** Press `Ctrl+C` in the terminal
+
+### First-Time Authentication
+
+When you first run the dashboard, you'll need to authenticate with E*TRADE:
+
+1. The dashboard will start and your browser will automatically open to the E*TRADE authorization page
+2. Log in with your E*TRADE username and password
+3. E*TRADE will display a verification code (usually 5 characters)
+4. Copy this code
+5. Go back to your terminal and paste the verification code when prompted
+6. Press Enter
+
+**Good news:** Your authentication tokens are cached for up to 12 hours, so you won't need to do this every time!
+
 ### Dashboard Features
 
-- **Auto-refresh**: Click "Refresh Data" to update with latest portfolio information
-- **Privacy Mode**: Toggle "Redact Values" to hide sensitive account balances and quantities
+Once logged in, you'll see:
+
+- **Auto-refresh**: Click "Refresh Data" in the sidebar to update with latest portfolio information
+- **Privacy Mode**: Toggle "Redact Values" to hide sensitive account balances and quantities (useful for screenshots)
 - **Time Range Selector**: View cash flow history for 7, 14, 30, 60, or 90 days
-- **Interactive Charts**: Hover over charts for detailed information
-- **Bucket Views**: Positions organized by configured buckets with color-coded gains/losses
-
-## Authentication Flow
-
-The application uses OAuth 1.0a authentication with E*TRADE:
-
-1. Run the dashboard
-2. Browser automatically opens to E*TRADE authorization page
-3. Log in to your E*TRADE account
-4. Copy the verification code
-5. Paste it into the terminal
-6. Tokens are cached for up to 12 hours
+- **Interactive Charts**: Hover over any chart for detailed information
+- **Bucket Views**: Your positions organized by the buckets you configured, with color-coded gains/losses
 
 ## Dashboard Sections
 
@@ -132,25 +241,65 @@ settings:
 
 ## Troubleshooting
 
+### "Python not found" Error
+
+If you get a "command not found" error when running `python3`:
+- **macOS/Linux**: Try `python` instead of `python3`
+- **Windows**: Use `python` instead of `python3`
+- Make sure Python is installed and added to your system PATH
+
+### Virtual Environment Issues
+
+**Virtual environment won't activate:**
+- **macOS/Linux**: Make sure you're using `source venv/bin/activate`
+- **Windows**: Use `venv\Scripts\activate` (not `source`)
+- **Windows PowerShell**: You may need to run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser` first
+
+**"No virtual environment found" when running dashboard.sh:**
+- Create a virtual environment first: `python3 -m venv venv`
+- Or skip the virtual environment requirement by editing `dashboard.sh`
+
 ### Authentication Issues
-- Ensure your API credentials are correct in `.env`
-- Browser should auto-open; if not, copy/paste the URL manually
-- Tokens are cached for up to 12 hours
-- If tokens expire, dashboard will prompt for re-authentication
+
+**"Failed to authenticate" error:**
+- Double-check your API credentials in `.env` are correct (no extra spaces)
+- Make sure you're using the right keys (sandbox vs production)
+- Verify your E*TRADE account has API access enabled
+
+**Browser doesn't open automatically:**
+- The URL will still be printed in the terminal
+- Copy and paste it into your browser manually
+
+**Tokens expired:**
+- Simply re-run the dashboard - it will automatically prompt for re-authentication
+- Token expiration is normal after several hours of inactivity
 
 ### Dashboard Won't Load
-- Ensure Streamlit is installed: `pip install streamlit`
-- Check if port 8501 is available
-- Try running: `streamlit run dashboard.py --server.port 8502`
 
-### Missing Positions
-- Check the `min_position_value` setting in config.yml
-- Verify positions have positive quantities
+**"Streamlit not found" error:**
+- Make sure you've installed dependencies: `pip install -r requirements.txt`
+- Verify your virtual environment is activated (look for `(venv)` in terminal)
+
+**Port 8501 already in use:**
+- Another instance might be running - close it first
+- Or use a different port: `streamlit run dashboard.py --server.port 8502`
+
+### Missing or Incorrect Data
+
+**Some positions are missing:**
+- Check the `min_position_value` setting in `config.yml` - positions below this value are hidden
+- Verify positions have positive quantities (short positions may not show)
+
+**"Unassigned" bucket shows positions:**
+- This is normal! Add those ticker symbols to your `config.yml` under the appropriate bucket
+- Use the ticker symbol exactly as it appears in E*TRADE
 
 ### Configuration Errors
-- Validate YAML syntax in config.yml
-- Ensure all required sections are present
-- Check symbol formatting (should match E*TRADE symbols exactly)
+
+**"Error loading config.yml":**
+- Check YAML syntax - indentation matters! Use spaces, not tabs
+- Make sure all bucket names and symbols are properly formatted
+- Ensure the file is saved as `config.yml` (not `.txt`)
 
 ## Security Notes
 
