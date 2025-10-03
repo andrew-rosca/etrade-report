@@ -38,6 +38,9 @@ buckets:
     - IWMY
     - QDTE
     - XBTY
+    - YBIT
+    - ULTY
+    - XDTE
   
   Hedge:
     - SPY*     # Matches SPY stock and any SPY options
