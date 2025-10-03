@@ -2,6 +2,9 @@
 
 An interactive Streamlit dashboard for E*TRADE portfolios with real-time data visualization, bucket allocation analysis, and cash flow tracking.
 
+<img width="2274" height="1814" alt="image" src="https://github.com/user-attachments/assets/9dd5f937-2187-4c2c-833b-b0bdbe4abe54" />
+
+
 ## Features
 
 - **Interactive Dashboard**: Real-time portfolio visualization with Streamlit
@@ -9,7 +12,7 @@ An interactive Streamlit dashboard for E*TRADE portfolios with real-time data vi
 - **Portfolio Analysis**: View allocation percentages, position details, and performance metrics
 - **Cash Flow History**: Visualize daily cash flow with interactive charts
 - **Margin Monitoring**: Track margin utilization and available cash
-- **Privacy Mode**: Redact sensitive values using upside-down Unicode numbers
+- **Privacy Mode**: Redact sensitive values
 - **Dividend Tracking**: Monitor dividend yields, payment dates, and annual income
 - **Configuration Management**: Easy-to-edit YAML configuration for bucket assignments
 
