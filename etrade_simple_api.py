@@ -5,6 +5,7 @@ import requests
 import urllib.parse
 import json
 import os
+import webbrowser
 from requests_oauthlib import OAuth1Session
 from typing import Dict, List, Any, Optional
 import xml.etree.ElementTree as ET
@@ -39,11 +40,12 @@ class ETradeSimpleAPI:
                     if (token_data.get('client_key') == self.client_key and 
                         token_data.get('use_sandbox') == self.use_sandbox):
                         
-                        # Check token age - E*TRADE tokens expire after ~2 hours
+                        # Check token age - E*TRADE tokens can last several hours but we validate them
                         timestamp = token_data.get('timestamp', 0)
                         age_hours = (time.time() - timestamp) / 3600
-                        
-                        if age_hours > 1.8:  # Proactively refresh before 2-hour expiration
+
+                        # Don't reject based on age alone - let validation check if they still work
+                        if age_hours > 12:  # Only reject if extremely old (12+ hours)
                             print(f"⚠️  Cached tokens are {age_hours:.1f} hours old, considered expired")
                             return
                             
@@ -180,10 +182,17 @@ class ETradeSimpleAPI:
             
             # Step 2: User authorization
             auth_url = f"{AUTHORIZATION_URL}?key={self.client_key}&token={oauth_token}"
-            print(f"Authorization URL: {auth_url}")
-            
+            print(f"\n🌐 Opening browser for authorization...")
+            print(f"If browser doesn't open automatically, visit: {auth_url}\n")
+
+            # Automatically open browser
+            try:
+                webbrowser.open(auth_url)
+            except Exception as e:
+                print(f"⚠️  Could not auto-open browser: {e}")
+
             # Get verification code
-            verifier = input("Enter the verification code: ").strip()
+            verifier = input("Enter the verification code from browser: ").strip()
             
             # Step 3: Exchange for access token
             print("2. Exchanging for access token...")
