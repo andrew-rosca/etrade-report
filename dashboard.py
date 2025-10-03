@@ -173,22 +173,46 @@ st.markdown("""
 # Load environment variables
 load_dotenv()
 
-redaction_text = "****"
-redaction_text_markdown = "\\*\\*\\*\\*"
+# Upside-down number mapping for redaction
+UPSIDE_DOWN_DIGITS = {
+    '0': '0',
+    '1': 'ı',
+    '2': 'ᄅ',
+    '3': 'Ɛ',
+    '4': 'ㄣ',
+    '5': 'ϛ',
+    '6': '9',
+    '7': 'ㄥ',
+    '8': '8',
+    '9': '6',
+    ',': ',',
+    '.': '.',
+    '$': '$',
+    '+': '+',
+    '-': '-',
+    '%': '%',
+    ' ': ' '
+}
+
+def to_upside_down(text):
+    """Convert text to upside-down unicode characters"""
+    return ''.join(UPSIDE_DOWN_DIGITS.get(c, c) for c in text)
 
 # Redaction helper functions
 def redact_value(value, format_str="${:,.0f}", markdown=False):
     """Redact a monetary value or quantity if redaction is enabled"""
     if st.session_state.get('redact_toggle', False):
-        # Use simple text that won't interfere with HTML
-        return redaction_text if not markdown else redaction_text_markdown
+        # Format the value normally first, then convert to upside-down
+        formatted = format_str.format(value)
+        return to_upside_down(formatted)
     else:
         return format_str.format(value)
 
 def redact_quantity(quantity, markdown=False):
     """Redact quantity values"""
     if st.session_state.get('redact_toggle', False):
-        return redaction_text if not markdown else redaction_text_markdown
+        formatted = f"{quantity:.1f}"
+        return to_upside_down(formatted)
     else:
         return f"{quantity:.1f}"
 
@@ -644,27 +668,23 @@ def main():
             for pos in sorted(filtered_positions, key=lambda x: x['market_value'], reverse=True)
         ])
         
-        # Apply redaction to sensitive columns
-        if st.session_state.get('redact_toggle', False):
-            bucket_df['Market Value'] = bucket_df['Market Value'].apply(lambda x: redaction_text)
-            bucket_df['Quantity'] = bucket_df['Quantity'].apply(lambda x: redaction_text)
-            bucket_df['Gain/Loss'] = bucket_df['Gain/Loss'].apply(lambda x: redaction_text)
-            bucket_df['Div Income'] = bucket_df['Div Income'].apply(lambda x: redaction_text if x != '-' else '-')
-        
         # Style and format the dataframe
         styled_df = bucket_df.style.map(style_gain_loss, subset=['Gain/Loss', 'G/L %'])
-        
+
         # Format based on redaction state
         if st.session_state.get('redact_toggle', False):
+            # Use custom formatters that convert to upside-down while preserving numeric type for styling
             styled_df = styled_df.format({
                 'Price': '${:.2f}',
+                'Market Value': lambda x: to_upside_down(f'${x:,.0f}'),
+                'Quantity': lambda x: to_upside_down(f'{x:.1f}'),
+                'Gain/Loss': lambda x: to_upside_down(f'${x:,.0f}'),
                 'G/L %': '{:+.1f}%',
                 'Div Yield': '{}',   # Already formatted
                 'Annual Div': '{}',  # Already formatted
-                'Div Income': '{}',  # Already formatted or redacted
+                'Div Income': lambda x: to_upside_down(x) if x != '-' else '-',
                 'Pay Date': '{}',
                 'Ex-Div Date': '{}'
-                # Market Value, Quantity, Gain/Loss are already redacted above
             })
         else:
             styled_df = styled_df.format({
