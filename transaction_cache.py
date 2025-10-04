@@ -80,18 +80,25 @@ class TransactionCache:
         all_transactions = []
         seen_ids = set()  # Track transaction IDs to prevent duplicates
         marker = None
-        max_calls = 20
+        max_calls = 50  # Increased from 20 to fetch more history
         call_count = 0
         oldest_date_found = None
+        expected_total_count = None  # Track total from first response
 
-        print(f"📊 Fetching full transaction history for {days_back} days...")
+        print(f"📊 Fetching transaction history for {days_back} days (back to {start_date.strftime('%m/%d/%Y')})...")
 
         while call_count < max_calls:
             call_count += 1
             print(f"🔄 API call {call_count}/{max_calls}...")
 
             try:
-                response = self.api.get_account_transactions(account_id_key, count=50, marker=marker)
+                # Note: E*TRADE API date parameters seem unreliable, so we fetch without them
+                # and filter locally
+                response = self.api.get_account_transactions(
+                    account_id_key, 
+                    count=50, 
+                    marker=marker
+                )
 
                 if 'Transaction' not in response:
                     print(f"⚠️  No more transactions found (call {call_count})")
@@ -130,29 +137,27 @@ class TransactionCache:
                 all_transactions.extend(new_transactions)
                 print(f"  ✅ Found {len(new_transactions)} transactions in range ({new_unique_count} new, {len(transactions) - new_unique_count} duplicates, total: {len(all_transactions)})")
 
+                # Capture expected total count from first response
+                if expected_total_count is None:
+                    expected_total_count = response.get('totalCount', 0)
+                    if expected_total_count:
+                        print(f"  📊 Total available: {expected_total_count} transactions")
+
                 # If we didn't get any new unique transactions, we're done
                 if new_unique_count == 0:
                     print("📄 No new transactions found - pagination complete")
                     break
 
-                # Check stopping conditions
+                # Check if we've fetched all available transactions based on initial totalCount
+                if expected_total_count and len(seen_ids) >= int(expected_total_count):
+                    print(f"📄 Fetched all {expected_total_count} available transactions")
+                    break
+                elif expected_total_count:
+                    print(f"  📊 Progress: {len(seen_ids)}/{expected_total_count} transactions")
+                
+                # Check if we've gone back far enough in time
                 if oldest_date_found and oldest_date_found < start_date:
-                    print(f"📅 Found transactions older than {start_date.strftime('%m/%d/%Y')}")
-                    break
-
-                # Check if we've fetched all available transactions
-                total_count = response.get('totalCount', 0)
-                if total_count and len(seen_ids) >= int(total_count):
-                    print(f"📄 Fetched all {total_count} available transactions")
-                    break
-
-                # Also check moreTransactions flag (though totalCount is more reliable)
-                more_transactions = response.get('moreTransactions', 'false')
-                has_more = str(more_transactions).lower() == 'true'
-
-                if not has_more and not total_count:
-                    # Only stop if both indicators say we're done
-                    print("📄 API reports no more transactions available")
+                    print(f"� Reached target date: {oldest_date_found.strftime('%m/%d/%Y')} (requested {start_date.strftime('%m/%d/%Y')})")
                     break
 
                 # Use the API's marker field if available, otherwise fall back to transaction ID
@@ -172,7 +177,14 @@ class TransactionCache:
                 print(f"❌ Error in pagination call {call_count}: {e}")
                 break
 
-        print(f"✅ Fetched {len(all_transactions)} unique transactions from {call_count} API calls")
+        # Report what we actually got
+        if all_transactions and oldest_date_found:
+            actual_days = (datetime.now() - oldest_date_found).days
+            print(f"✅ Fetched {len(all_transactions)} transactions from {call_count} API calls")
+            print(f"   Date range: {oldest_date_found.strftime('%m/%d/%Y')} to {datetime.now().strftime('%m/%d/%Y')} ({actual_days} days)")
+        else:
+            print(f"✅ Fetched {len(all_transactions)} transactions from {call_count} API calls")
+        
         return all_transactions
     
     def get_transactions(self, account_id_key: str, days_back: int = 7, force_refresh: bool = False) -> List[Dict[str, Any]]:
@@ -199,6 +211,29 @@ class TransactionCache:
         
         if not cached_transactions:
             print("📁 No cached transactions, fetching full history...")
+            transactions = self._fetch_paginated_transactions(account_id_key, days_back)
+            self._save_cache(account_id_key, transactions)
+            return transactions
+        
+        # Check if cached data covers the requested date range
+        end_date = datetime.now()
+        start_date = (end_date - timedelta(days=days_back)).replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # Find oldest transaction in cache
+        oldest_cached_date = None
+        for trans in cached_transactions:
+            try:
+                trans_date_ms = int(trans.get('transactionDate', 0))
+                trans_date_obj = datetime.fromtimestamp(trans_date_ms / 1000)
+                if oldest_cached_date is None or trans_date_obj < oldest_cached_date:
+                    oldest_cached_date = trans_date_obj
+            except (ValueError, TypeError):
+                continue
+        
+        # If cache doesn't go back far enough, re-fetch with larger range
+        if oldest_cached_date and oldest_cached_date > start_date:
+            print(f"📁 Cache only goes back to {oldest_cached_date.strftime('%m/%d/%Y')}, but need data from {start_date.strftime('%m/%d/%Y')}")
+            print(f"🔄 Re-fetching transactions for {days_back} days...")
             transactions = self._fetch_paginated_transactions(account_id_key, days_back)
             self._save_cache(account_id_key, transactions)
             return transactions
@@ -237,17 +272,25 @@ class TransactionCache:
         print(f"📅 API response goes back to {oldest_api_datetime.strftime('%m/%d/%Y %H:%M:%S')}")
 
         # Find stale transactions (in cache but no longer in API)
-        # Logic: If a cached transaction is NEWER than the oldest API transaction,
-        # but it's NOT in the API response, then it must have been deleted/replaced at source
+        # IMPORTANT: Only check for stale transactions in the MOST RECENT time window
+        # where we expect the API to have complete data (e.g., last 24-48 hours).
+        # We can't assume the 50-transaction API response includes ALL transactions
+        # back to oldest_api_timestamp - there could be older valid transactions.
         stale_ids = set()
+        
+        # Only check for stale transactions from the last 2 days
+        # (pending transactions typically settle within 24-48 hours)
+        recent_cutoff = datetime.now() - timedelta(days=2)
+        recent_cutoff_ms = int(recent_cutoff.timestamp() * 1000)
 
         for t in cached_transactions:
             try:
                 trans_date_ms = int(t.get('transactionDate', 0))
 
-                # Only reconcile if this cached transaction is newer than oldest API transaction
-                if trans_date_ms >= oldest_api_timestamp:
-                    # If this cached transaction is not in the API response, it's stale
+                # Only reconcile very recent transactions (last 2 days)
+                # These are the ones that might be pending and could settle/change
+                if trans_date_ms >= recent_cutoff_ms:
+                    # If this recent cached transaction is not in the API response, it's stale
                     if t.get('transactionId') not in api_ids:
                         stale_ids.add(t.get('transactionId'))
             except (ValueError, TypeError):

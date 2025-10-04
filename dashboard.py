@@ -564,7 +564,8 @@ def main():
                                 showgrid=True,
                                 gridcolor='rgba(128,128,128,0.2)',
                                 tickformat='%m/%d',
-                                tickfont=dict(size=9)
+                                tickfont=dict(size=9),
+                                range=[balance_df['date'].min(), balance_df['date'].max()]  # Force full date range
                             ),
                             yaxis=dict(
                                 title=None,

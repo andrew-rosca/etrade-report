@@ -111,6 +111,11 @@ class BalanceHistoryReconstructor:
                 return amount
             elif 'debit' in desc_lower or 'withdrawal' in desc_lower:
                 return amount
+            else:
+                # Online transfer without deposit/credit/debit/withdrawal keywords
+                # Log it to help debug
+                print(f"⚠️ ACH/Online Transfer without clear direction: '{trans_type}' - '{description}': ${amount}")
+                return amount  # Default to including it
 
         # Check if this is an internal transfer (not a cash flow)
         for neutral_desc in neutral_transfer_descriptions:
